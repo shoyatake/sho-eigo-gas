@@ -58,6 +58,11 @@ function handleFollow(event) {
 function handleMessage(event) {
   const userId = event.source.userId;
   const text   = (event.message && event.message.text) || '';
+  if (isInScenario(userId, 'SC-DELETION')) {
+    reactivateFromDeletion(userId);
+    replyMessage(event.replyToken, 'おかえりなさい。登録は継続します。\nまた一緒に音から英語をやっていきましょう 🌱');
+    return;
+  }
   const keywords = {
     '体験':  '▼ 2日間無料体験はこちら\nhttps://sho-blog.com/all/trial/trial_day1.html',
     'day1':  '▼ 体験Day 1\nhttps://sho-blog.com/all/trial/trial_day1.html',
@@ -97,6 +102,12 @@ function handlePostback(event) {
     replyMessage(event.replyToken, data === 'quiz_B'
       ? '正解です！Flap Tを知っているんですね。もう少し深い話を続けます 🎵'
       : '惜しい！正解は「ベラ」です。tがラ行に変わる現象、Flap Tといいます 🎵');
+    return;
+  }
+  if (data === 'keep_account') {
+    reactivateFromDeletion(userId);
+    replyMessage(event.replyToken, 'ありがとうございます。登録を継続します。\nまたゆっくり戻ってきてください 🌱');
+    return;
   }
 }
 
@@ -125,8 +136,10 @@ function checkAndSendScheduled() {
       sendPushMessage(userId, msg);
       updateUserStep(userId, scenarioId, stepNum + 1, now);
     }
-    if (step.sendSurvey) { Utilities.sleep(500); sendSurveyButtons(userId); }
-    if (step.sendQuiz)   { Utilities.sleep(500); sendQuizButtons(userId); }
+    if (step.sendSurvey)     { Utilities.sleep(500); sendSurveyButtons(userId); }
+    if (step.sendQuiz)       { Utilities.sleep(500); sendQuizButtons(userId); }
+    if (step.sendKeepButton) { Utilities.sleep(500); sendKeepAccountButton(userId); }
+    if (step.executeDeletion){ Utilities.sleep(500); executeUserDeletion(userId); }
     Utilities.sleep(200);
   }
   checkEngagement();
@@ -145,9 +158,19 @@ function checkEngagement() {
   const users = ss.getSheetByName('USERS').getDataRange().getValues();
   const now = new Date();
   for (var i = 1; i < users.length; i++) {
-    const userId = users[i][0];
+    const userId     = users[i][0];
+    const scenarioId = users[i][2];
+    const stepSentAt = users[i][4] ? new Date(users[i][4]) : null;
     if (!userId) continue;
-    if (hasTag(userId, 'purchased') || hasTag(userId, 'dormant')) continue;
+    if (hasTag(userId, 'purchased')) continue;
+    if (scenarioId === 'SC-DORMANT' && stepSentAt) {
+      const daysInDormant = (now - stepSentAt) / (1000 * 60 * 60 * 24);
+      if (daysInDormant >= DORMANT_TO_DELETION_DAYS && !hasAnyReadTag(userId)) {
+        moveToScenario(userId, 'SC-DELETION', 0);
+      }
+      continue;
+    }
+    if (hasTag(userId, 'dormant')) continue;
     const registeredAt = users[i][5] ? new Date(users[i][5]) : null;
     if (!registeredAt) continue;
     const daysSince = (now - registeredAt) / (1000 * 60 * 60 * 24);
@@ -202,7 +225,19 @@ const SCENARIOS_DATA = {
     { stepNum: 1, delayDays: 7, sendHour: 8, trackingTag: 'read_dormant',
       message: 'お久しぶりです。\n\n気が向いたときに戻ってきてください。\n\n▼ いつでも体験できます\nhttps://sho-blog.com/all/trial/trial_day1.html' },
   ],
+  'SC-DELETION': [
+    { stepNum: 0, delayDays: 0, sendHour: 8, trackingTag: null, sendKeepButton: true,
+      message: 'ご登録の整理についてのお知らせです。\n\nしばらくご利用がないため\n30日後に登録情報を自動で削除します。\n\n継続をご希望の場合は\n下のボタンを押してください。\n\n削除されると過去のタグや進捗も消えます。' },
+    { stepNum: 1, delayDays: 23, sendHour: 8, trackingTag: null, sendKeepButton: true,
+      message: '削除予定まで残り7日になりました。\n\nもう一度だけお知らせします。\n継続したい場合は下のボタンから。\n\nこのままで大丈夫な場合は\n何もしなくて構いません。' },
+    { stepNum: 2, delayDays: 4, sendHour: 8, trackingTag: null, sendKeepButton: true,
+      message: '削除予定まで残り3日です。\n\n最後のお知らせになります。\n戻ってくる気持ちが少しでもあれば\n下のボタンを押してください。' },
+    { stepNum: 3, delayDays: 3, sendHour: 8, trackingTag: null, executeDeletion: true,
+      message: '本日をもって登録情報を削除します。\n\n短い間でしたが、ありがとうございました。\nまた音の話に興味が湧いたら\nいつでもLINEから戻ってきてください。\n\n▼ いつでもこちらから\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+  ],
 };
+
+const DORMANT_TO_DELETION_DAYS = 30;
 
 function getScenarioStep(scenarioId, stepNum) {
   var scenario = SCENARIOS_DATA[scenarioId];
@@ -310,6 +345,58 @@ function sendSurveyButtons(userId) {
     }),
     muteHttpExceptions: true
   });
+}
+
+function sendKeepAccountButton(userId) {
+  UrlFetchApp.fetch(LINE_API + '/push', {
+    method: 'post',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+    payload: JSON.stringify({
+      to: userId,
+      messages: [{ type: 'template', altText: '登録を継続する', template: {
+        type: 'buttons', text: '登録を継続しますか？',
+        actions: [
+          { type: 'postback', label: '✅ 登録を継続する', data: 'keep_account' },
+        ]
+      }}]
+    }),
+    muteHttpExceptions: true
+  });
+}
+
+function isInScenario(userId, scenarioId) {
+  if (!userId) return false;
+  var data = SpreadsheetApp.openById(CONFIG.SS_ID).getSheetByName('USERS').getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0] === userId) return data[i][2] === scenarioId;
+  }
+  return false;
+}
+
+function reactivateFromDeletion(userId) {
+  if (!userId) return;
+  removeTag(userId, 'dormant');
+  removeTag(userId, 'low_engagement');
+  addTag(userId, 'resubscribed');
+  moveToScenario(userId, 'SC-MAIN', 0);
+}
+
+function executeUserDeletion(userId) {
+  if (!userId) return;
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var usersSheet = ss.getSheetByName('USERS');
+  var users = usersSheet.getDataRange().getValues();
+  for (var i = users.length - 1; i >= 1; i--) {
+    if (users[i][0] === userId) usersSheet.deleteRow(i + 1);
+  }
+  var tagsSheet = ss.getSheetByName('TAGS');
+  var tags = tagsSheet.getDataRange().getValues();
+  for (var j = tags.length - 1; j >= 1; j--) {
+    if (tags[j][0] === userId) tagsSheet.deleteRow(j + 1);
+  }
+  var logSheet = ss.getSheetByName('DELETION_LOG') || ss.insertSheet('DELETION_LOG');
+  if (logSheet.getLastRow() === 0) logSheet.appendRow(['userId','deletedAt']);
+  logSheet.appendRow([userId, new Date()]);
 }
 
 function sendQuizButtons(userId) {
