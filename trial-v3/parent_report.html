@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1a2d45">
+<title>お子さまの2日間の成長レポート｜sho eigo</title>
+<meta name="description" content="お子さまが体験した2日間の学習レポートと、3つの音声記録をお届けします。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Noto+Serif+JP:wght@600;700;900&family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --nv:#1a2d45; --nv2:#243b5b; --nv3:#0f1f35;
+  --gd:#c9a84c; --gd2:#e8c96a; --gd3:#a88832;
+  --bg:#faf9f5; --card:#fff;
+  --txt:#1a2d45; --mut:#6a7891; --mut2:#9aa3b5;
+  --bd:#e5e0d0; --bd2:#d9d1b8;
+  --rd:#c84a4a; --gr:#4a8c5f; --bl:#3a6ea5; --pr:#7b4ab5;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.06);
+  --shadow-md:0 4px 14px rgba(0,0,0,.08);
+  --shadow-lg:0 12px 32px rgba(0,0,0,.12);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;}
+html,body{background:var(--bg);color:var(--txt);font-family:'Noto Sans JP',sans-serif;font-size:16px;line-height:1.8;overflow-x:hidden;}
+button,a{font-family:inherit;cursor:pointer;}
+.app{max-width:680px;margin:0 auto;min-height:100vh;}
+
+/* ═══ トップヘッダー（格式） ═══ */
+.top{background:linear-gradient(135deg,#0f1f35,#1a2d45);color:white;padding:16px 20px;text-align:center;border-bottom:3px solid var(--gd);position:sticky;top:0;z-index:100;}
+.top-logo{font-weight:900;letter-spacing:4px;font-size:15px;margin-bottom:4px;}
+.top-logo em{color:var(--gd);font-style:normal;}
+.top-sub{font-size:10px;letter-spacing:3px;color:var(--gd);font-weight:600;}
+
+/* ═══ ヒーロー（最初に目に入る） ═══ */
+.hero{background:linear-gradient(180deg,white,#faf7ee);padding:30px 22px 24px;border-bottom:1px solid var(--bd);}
+.hero-eyebrow{font-size:11px;letter-spacing:2.5px;color:var(--gd);font-weight:700;text-align:center;margin-bottom:10px;}
+.hero-title{font-family:'Noto Serif JP',serif;font-size:25px;font-weight:900;color:var(--nv);text-align:center;line-height:1.5;margin-bottom:14px;}
+.hero-title strong{color:var(--gd3);}
+.hero-lede{font-size:14px;color:var(--mut);text-align:center;line-height:1.9;margin-bottom:20px;}
+
+.hero-meta{background:white;border:1px solid var(--bd);border-radius:12px;padding:14px 16px;display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;margin-bottom:16px;}
+.hero-meta-ic{background:#faf7ee;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;}
+.hero-meta-info{min-width:0;}
+.hero-meta-ttl{font-size:10px;letter-spacing:1px;color:var(--mut);font-weight:600;}
+.hero-meta-val{font-size:14px;font-weight:800;color:var(--nv);}
+.hero-meta-badge{background:var(--gr);color:white;font-size:9px;font-weight:800;padding:4px 10px;border-radius:99px;letter-spacing:1px;}
+
+/* ═══ 3音源プレーヤー（最重要セクション） ═══ */
+.audio-hero{background:linear-gradient(135deg,var(--nv),var(--nv2));color:white;border-radius:20px;padding:24px 20px;margin:20px;box-shadow:var(--shadow-lg);position:relative;overflow:hidden;}
+.audio-hero::before{content:"";position:absolute;top:-80%;left:-30%;width:160%;height:260%;background:radial-gradient(ellipse at center,rgba(201,168,76,.12),transparent 50%);animation:rot 25s linear infinite;pointer-events:none;}
+@keyframes rot{to{transform:rotate(360deg)}}
+.audio-hero-inner{position:relative;z-index:1;}
+.audio-hero-eyebrow{text-align:center;font-size:10px;letter-spacing:3px;color:var(--gd);font-weight:700;margin-bottom:8px;}
+.audio-hero-ttl{font-family:'Noto Serif JP',serif;text-align:center;font-size:20px;font-weight:900;line-height:1.5;margin-bottom:6px;}
+.audio-hero-sub{text-align:center;font-size:12px;color:rgba(255,255,255,.75);margin-bottom:20px;}
+
+.track-row{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;transition:all .3s;}
+.track-row.active{background:rgba(201,168,76,.2);border-color:var(--gd);box-shadow:0 4px 20px rgba(201,168,76,.25);transform:scale(1.015);}
+.track-num{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Noto Serif JP',serif;font-weight:900;font-size:16px;flex-shrink:0;border:2px solid var(--gd);background:rgba(201,168,76,.15);color:var(--gd);}
+.track-row.active .track-num{background:var(--gd);color:var(--nv);}
+.track-info{flex:1;min-width:0;}
+.track-ttl{font-size:13px;font-weight:800;color:white;margin-bottom:2px;line-height:1.4;}
+.track-sub{font-size:10.5px;color:rgba(255,255,255,.55);font-family:'Inter',sans-serif;}
+.track-time{font-size:9.5px;color:var(--gd);font-family:'Inter',monospace;letter-spacing:1.2px;margin-top:3px;}
+.track-play{background:var(--gd);color:var(--nv);border:none;width:38px;height:38px;border-radius:50%;font-size:13px;flex-shrink:0;transition:all .2s;display:flex;align-items:center;justify-content:center;}
+.track-play:active{transform:scale(.9);}
+
+.audio-hero-cta{background:linear-gradient(135deg,var(--gd),var(--gd2));color:var(--nv);border:none;border-radius:14px;padding:18px;font-size:15px;font-weight:900;width:100%;margin-top:6px;box-shadow:0 4px 20px rgba(201,168,76,.35);display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:.5px;}
+.audio-hero-cta:active{transform:scale(.98);}
+.audio-hero-prog{background:rgba(255,255,255,.1);height:3px;border-radius:2px;margin-top:14px;overflow:hidden;}
+.audio-hero-prog-bar{background:linear-gradient(90deg,var(--gd),var(--gd2));height:100%;width:0%;transition:width .1s linear;}
+
+.audio-hero-note{background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.2);border-radius:10px;padding:11px 13px;font-size:11.5px;color:rgba(255,255,255,.85);line-height:1.8;margin-top:14px;text-align:center;}
+
+/* ═══ セクション共通 ═══ */
+.section{padding:28px 22px;}
+.section.alt{background:white;}
+.section-eyebrow{font-size:10px;letter-spacing:2.5px;color:var(--gd);font-weight:700;text-align:center;margin-bottom:10px;}
+.section-title{font-family:'Noto Serif JP',serif;font-size:22px;font-weight:900;color:var(--nv);text-align:center;line-height:1.5;margin-bottom:8px;}
+.section-lede{text-align:center;font-size:12.5px;color:var(--mut);line-height:1.9;margin-bottom:22px;}
+
+/* ═══ 定量データ ═══ */
+.metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;}
+.metric-card{background:white;border:1px solid var(--bd);border-radius:14px;padding:14px 12px;text-align:center;box-shadow:var(--shadow-sm);position:relative;overflow:hidden;}
+.metric-card::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--gd),var(--gd2));}
+.metric-label{font-size:10px;color:var(--mut);letter-spacing:1px;font-weight:600;margin-bottom:8px;}
+.metric-change{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:6px;}
+.metric-before{font-family:'Inter',sans-serif;font-size:14px;color:var(--mut);text-decoration:line-through;font-weight:600;}
+.metric-arrow{color:var(--gr);font-weight:900;}
+.metric-after{font-family:'Inter',sans-serif;font-size:19px;color:var(--nv);font-weight:900;}
+.metric-delta{background:#f1f7f3;color:var(--gr);font-size:10px;font-weight:800;padding:3px 9px;border-radius:99px;display:inline-block;letter-spacing:.5px;}
+
+.metric-wide{background:white;border:1px solid var(--bd);border-radius:14px;padding:18px 16px;box-shadow:var(--shadow-sm);margin-bottom:14px;}
+.metric-wide-hdr{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.metric-wide-ic{font-size:22px;}
+.metric-wide-ttl{font-size:13px;color:var(--nv);font-weight:800;}
+.metric-wide-bar{background:#f0ede0;border-radius:99px;height:10px;overflow:hidden;margin-bottom:8px;position:relative;}
+.metric-wide-fill{background:linear-gradient(90deg,var(--gd),var(--gd2));height:100%;border-radius:99px;transition:width 1.5s ease;}
+.metric-wide-scale{display:flex;justify-content:space-between;font-size:9.5px;color:var(--mut);letter-spacing:.5px;}
+
+/* ═══ sho先生の手紙 ═══ */
+.letter-card{background:linear-gradient(180deg,#fefdf8,#faf7ee);border:1px solid var(--bd2);border-radius:20px;padding:28px 22px;box-shadow:var(--shadow-md);margin-bottom:18px;position:relative;}
+.letter-card::before{content:"";position:absolute;top:-1px;left:20px;right:20px;height:4px;background:linear-gradient(90deg,transparent,var(--gd),transparent);}
+.letter-avatar-row{display:flex;align-items:center;gap:14px;margin-bottom:18px;padding-bottom:16px;border-bottom:1px dashed var(--bd);}
+.letter-avatar{width:56px;height:56px;border-radius:50%;overflow:hidden;border:2.5px solid var(--gd);flex-shrink:0;box-shadow:0 2px 10px rgba(201,168,76,.25);}
+.letter-avatar img{width:100%;height:auto;object-position:center 8%;transform:scale(1.3) translateY(6px);}
+.letter-avatar-fb{width:100%;height:100%;background:linear-gradient(135deg,var(--gd),var(--gd2));display:flex;align-items:center;justify-content:center;font-size:22px;}
+.letter-name-block{flex:1;min-width:0;}
+.letter-from{font-size:10px;letter-spacing:1.5px;color:var(--gd);font-weight:700;margin-bottom:2px;}
+.letter-name{font-size:15px;color:var(--nv);font-weight:900;margin-bottom:2px;}
+.letter-cred{font-size:10.5px;color:var(--mut);line-height:1.5;}
+
+.letter-body{font-size:13.5px;line-height:2.1;color:var(--txt);font-weight:500;}
+.letter-body p{margin-bottom:14px;}
+.letter-body strong{color:var(--nv);font-weight:800;background:linear-gradient(transparent 60%,rgba(201,168,76,.3) 60%);padding:0 2px;}
+.letter-sig{font-family:'Noto Serif JP',serif;text-align:right;margin-top:16px;font-weight:700;color:var(--nv);font-size:14px;}
+.letter-sig-sub{font-size:11px;color:var(--mut);font-weight:500;text-align:right;margin-top:2px;}
+
+/* ═══ 成長予測グラフ ═══ */
+.forecast-card{background:white;border:1px solid var(--bd);border-radius:16px;padding:20px 16px;box-shadow:var(--shadow-md);margin-bottom:16px;}
+.forecast-title{font-size:14px;font-weight:900;color:var(--nv);text-align:center;margin-bottom:6px;}
+.forecast-sub{font-size:11px;color:var(--mut);text-align:center;margin-bottom:18px;}
+.forecast-chart{position:relative;height:180px;padding:20px 10px 30px 30px;margin-bottom:14px;}
+.forecast-chart-bars{position:absolute;inset:20px 10px 30px 30px;display:flex;align-items:flex-end;gap:3px;}
+.forecast-bar{flex:1;background:linear-gradient(to top,var(--gd3),var(--gd2));border-radius:3px 3px 0 0;position:relative;transition:height 1.5s ease;}
+.forecast-bar.now{background:linear-gradient(to top,var(--nv),var(--nv2));}
+.forecast-bar.pass{background:linear-gradient(to top,var(--gr),#7bb58a);}
+.forecast-bar-label{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--nv);font-weight:700;white-space:nowrap;}
+.forecast-y-axis{position:absolute;left:0;top:0;bottom:30px;width:28px;display:flex;flex-direction:column-reverse;justify-content:space-between;font-size:8.5px;color:var(--mut);padding-top:16px;}
+.forecast-y-label{text-align:right;padding-right:4px;}
+.forecast-x-axis{position:absolute;left:30px;right:10px;bottom:0;display:flex;justify-content:space-between;font-size:9.5px;color:var(--mut);font-weight:600;}
+.forecast-pass-line{position:absolute;left:30px;right:10px;border-top:1.5px dashed var(--gr);pointer-events:none;}
+.forecast-pass-line::after{content:"英検3級合格ライン";position:absolute;right:0;top:-16px;font-size:9px;color:var(--gr);font-weight:800;background:white;padding:1px 6px;border-radius:4px;}
+
+.forecast-note{background:#fef8e7;border:1px solid rgba(201,168,76,.3);border-radius:10px;padding:11px 13px;font-size:11.5px;color:#6b5420;line-height:1.8;}
+.forecast-note strong{color:var(--nv);}
+
+/* ═══ 社会的証明 ═══ */
+.testimonials{background:white;border:1px solid var(--bd);border-radius:14px;padding:16px;margin-bottom:14px;}
+.testi-item{padding:12px 0;border-bottom:1px dashed var(--bd);}
+.testi-item:last-child{border-bottom:none;}
+.testi-hdr{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+.testi-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--gd),var(--gd2));color:var(--nv);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;flex-shrink:0;}
+.testi-meta{flex:1;min-width:0;}
+.testi-name{font-size:12px;font-weight:800;color:var(--nv);}
+.testi-attr{font-size:10px;color:var(--mut);}
+.testi-stars{color:var(--gd);font-size:11px;letter-spacing:.5px;}
+.testi-body{font-size:12.5px;line-height:1.9;color:var(--txt);}
+
+.stats-bar{background:linear-gradient(135deg,var(--nv),var(--nv2));color:white;border-radius:14px;padding:18px 14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;}
+.stats-item{text-align:center;border-right:1px solid rgba(255,255,255,.15);padding:0 4px;}
+.stats-item:last-child{border-right:none;}
+.stats-num{font-family:'Inter',sans-serif;font-size:22px;font-weight:900;color:var(--gd);margin-bottom:2px;}
+.stats-lbl{font-size:9.5px;color:rgba(255,255,255,.75);letter-spacing:.5px;}
+
+/* ═══ プラン選択（核心） ═══ */
+.plan-wrap{margin-bottom:16px;}
+.plan{background:white;border:2px solid var(--bd);border-radius:18px;padding:22px 18px;margin-bottom:14px;box-shadow:var(--shadow-md);position:relative;}
+.plan.featured{border-color:var(--gd);box-shadow:0 12px 32px rgba(201,168,76,.25);}
+.plan-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--gd),var(--gd2));color:var(--nv);font-size:10px;font-weight:900;padding:5px 16px;border-radius:99px;letter-spacing:1px;white-space:nowrap;box-shadow:0 2px 10px rgba(201,168,76,.4);}
+.plan-name{font-family:'Noto Serif JP',serif;font-size:18px;font-weight:900;color:var(--nv);text-align:center;margin-bottom:4px;}
+.plan-tag{text-align:center;font-size:11px;color:var(--mut);margin-bottom:14px;}
+
+.plan-price{text-align:center;margin-bottom:16px;padding-bottom:14px;border-bottom:1px dashed var(--bd);}
+.plan-price-was{font-size:12px;color:var(--mut);text-decoration:line-through;font-family:'Inter',sans-serif;margin-right:6px;}
+.plan-price-now{font-family:'Inter',sans-serif;font-size:30px;font-weight:900;color:var(--nv);}
+.plan-price-unit{font-size:12px;color:var(--mut);font-weight:600;margin-left:3px;}
+.plan-price-sub{font-size:10.5px;color:var(--gd3);font-weight:700;margin-top:4px;}
+
+.plan-features{list-style:none;margin-bottom:16px;}
+.plan-features li{padding:7px 0;font-size:12.5px;color:var(--txt);display:flex;gap:8px;align-items:flex-start;line-height:1.6;}
+.plan-features li::before{content:"✓";color:var(--gr);font-weight:900;flex-shrink:0;font-size:13px;}
+.plan-features li strong{color:var(--nv);}
+
+.plan-cta{background:var(--nv);color:white;border:none;border-radius:12px;padding:15px;font-size:13.5px;font-weight:800;width:100%;box-shadow:0 4px 14px rgba(26,45,69,.25);display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;}
+.plan.featured .plan-cta{background:linear-gradient(135deg,var(--gd),var(--gd2));color:var(--nv);box-shadow:0 6px 20px rgba(201,168,76,.4);font-weight:900;}
+.plan-cta:active{transform:scale(.98);}
+
+/* ═══ 比較表 ═══ */
+.compare-table{background:white;border:1px solid var(--bd);border-radius:14px;overflow:hidden;margin-bottom:16px;}
+.compare-row{display:grid;grid-template-columns:1.4fr 1fr 1fr;padding:11px 12px;border-bottom:1px solid var(--bd);font-size:11px;align-items:center;}
+.compare-row:last-child{border-bottom:none;}
+.compare-row.head{background:var(--nv);color:white;font-weight:800;font-size:11px;}
+.compare-row.head .compare-cell{color:white;}
+.compare-cell{text-align:center;line-height:1.5;}
+.compare-cell.label{text-align:left;font-weight:700;color:var(--nv);}
+.compare-cell.highlight{background:rgba(201,168,76,.1);color:var(--nv);font-weight:800;}
+.compare-check{color:var(--gr);font-weight:900;font-size:13px;}
+.compare-dash{color:var(--mut);}
+
+/* ═══ 保証 ═══ */
+.guarantee{background:linear-gradient(135deg,#f1f7f3,#e8f0ec);border:2px solid var(--gr);border-radius:16px;padding:20px 18px;text-align:center;margin-bottom:16px;box-shadow:var(--shadow-sm);}
+.guarantee-seal{width:72px;height:72px;border-radius:50%;background:white;border:3px solid var(--gr);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 12px;box-shadow:0 4px 16px rgba(74,140,95,.2);}
+.guarantee-ttl{font-family:'Noto Serif JP',serif;font-size:17px;font-weight:900;color:var(--gr);margin-bottom:6px;}
+.guarantee-desc{font-size:12.5px;color:var(--nv);line-height:1.9;font-weight:500;}
+.guarantee-desc strong{color:var(--gr);}
+
+/* ═══ FAQ ═══ */
+.faq-item{background:white;border:1px solid var(--bd);border-radius:12px;margin-bottom:8px;overflow:hidden;}
+.faq-q{padding:13px 16px;font-size:13px;font-weight:700;color:var(--nv);display:flex;justify-content:space-between;align-items:center;gap:10px;border:none;background:none;width:100%;text-align:left;line-height:1.5;}
+.faq-q-icon{color:var(--gd);font-size:14px;font-weight:900;flex-shrink:0;transition:transform .2s;}
+.faq-item.open .faq-q-icon{transform:rotate(180deg);}
+.faq-a{padding:0 16px;max-height:0;overflow:hidden;transition:all .3s ease;font-size:12px;color:var(--mut);line-height:1.9;}
+.faq-item.open .faq-a{padding:0 16px 14px;max-height:500px;}
+
+/* ═══ LINE相談 ═══ */
+.line-consult{background:linear-gradient(135deg,#e8f5e6,#d9ecd5);border:1px solid #9bc895;border-radius:14px;padding:18px;text-align:center;margin-bottom:14px;}
+.line-consult-ttl{font-size:14px;font-weight:800;color:#1a5219;margin-bottom:6px;}
+.line-consult-sub{font-size:11.5px;color:#1a5219;margin-bottom:12px;line-height:1.8;}
+.line-consult-btn{background:#06C755;color:white;text-decoration:none;border:none;border-radius:12px;padding:14px 24px;font-size:13px;font-weight:800;display:inline-flex;align-items:center;gap:6px;box-shadow:0 4px 14px rgba(6,199,85,.3);}
+
+/* ═══ Sticky CTA（下部固定） ═══ */
+.sticky-cta{position:fixed;bottom:0;left:50%;transform:translateX(-50%);max-width:680px;width:100%;background:linear-gradient(to top,white 75%,rgba(255,255,255,.95));padding:12px 16px 16px;z-index:80;box-shadow:0 -6px 24px rgba(0,0,0,.1);border-top:1px solid var(--bd);display:none;}
+.sticky-cta.show{display:block;animation:slideUp .3s;}
+@keyframes slideUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}}
+.sticky-cta-btn{background:linear-gradient(135deg,var(--gd),var(--gd2));color:var(--nv);border:none;border-radius:12px;padding:14px;width:100%;font-size:14px;font-weight:900;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 4px 14px rgba(201,168,76,.35);}
+
+/* ═══ フッター ═══ */
+.footer{padding:24px 22px 120px;text-align:center;font-size:10.5px;color:var(--mut);line-height:1.9;}
+.footer-links{display:flex;justify-content:center;gap:12px;margin-top:10px;flex-wrap:wrap;}
+.footer-links a{color:var(--mut);text-decoration:underline;font-size:10.5px;}
+
+.mini-divider{text-align:center;margin:18px 0;color:var(--gd);font-size:14px;letter-spacing:8px;}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+<!-- ═══ トップヘッダー ═══ -->
+<div class="top">
+  <div class="top-logo">sho <em>eigo</em></div>
+  <div class="top-sub">◦ PARENT REPORT ◦</div>
+</div>
+
+<!-- ═══ ヒーロー ═══ -->
+<div class="hero">
+  <div class="hero-eyebrow">2026.04.22 · 2日間の学習レポート</div>
+  <h1 class="hero-title">
+    お子さまの声に、<br>
+    <strong>確かな変化</strong>がありました
+  </h1>
+  <p class="hero-lede">
+    まずは3つの録音を、<br>
+    ぜひ続けてお聴きください。<br>
+    たった2日間で生まれた違いが、<br>
+    数秒で伝わります。
+  </p>
+
+  <div class="hero-meta">
+    <div class="hero-meta-ic">👦</div>
+    <div class="hero-meta-info">
+      <div class="hero-meta-ttl">お子さま</div>
+      <div class="hero-meta-val">中学2年生のお子さま</div>
+    </div>
+    <div class="hero-meta-badge">完走</div>
+  </div>
+  <div class="hero-meta">
+    <div class="hero-meta-ic">⏱</div>
+    <div class="hero-meta-info">
+      <div class="hero-meta-ttl">学習時間</div>
+      <div class="hero-meta-val">合計45分（Day1 25分 / Day2 20分）</div>
+    </div>
+  </div>
+  <div class="hero-meta">
+    <div class="hero-meta-ic">🎙</div>
+    <div class="hero-meta-info">
+      <div class="hero-meta-ttl">録音した音声</div>
+      <div class="hero-meta-val">3本（全て保存済み）</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 3音源プレーヤー（最重要） ═══ -->
+<div class="audio-hero">
+  <div class="audio-hero-inner">
+    <div class="audio-hero-eyebrow">◦ 2-DAY AUDIO JOURNEY ◦</div>
+    <h2 class="audio-hero-ttl">2日間の音の軌跡</h2>
+    <div class="audio-hero-sub">3つの録音を、ぜひ順番に</div>
+
+    <div class="track-row" id="track1">
+      <div class="track-num">Ⅰ</div>
+      <div class="track-info">
+        <div class="track-ttl">1日目の朝、初めての録音</div>
+        <div class="track-sub">スタート地点</div>
+        <div class="track-time">Day1 · Before · 0:00〜</div>
+      </div>
+      <button class="track-play" onclick="playTrack(1)">▶</button>
+    </div>
+
+    <div class="track-row" id="track2">
+      <div class="track-num">Ⅱ</div>
+      <div class="track-info">
+        <div class="track-ttl">1日目の終わり、25分後</div>
+        <div class="track-sub">最初の変化</div>
+        <div class="track-time">Day1 · After · 0:15〜</div>
+      </div>
+      <button class="track-play" onclick="playTrack(2)">▶</button>
+    </div>
+
+    <div class="track-row" id="track3">
+      <div class="track-num">Ⅲ</div>
+      <div class="track-info">
+        <div class="track-ttl">2日目の終わり、最後の録音</div>
+        <div class="track-sub">2日間の集大成</div>
+        <div class="track-time">Day2 · Final · 0:30〜</div>
+      </div>
+      <button class="track-play" onclick="playTrack(3)">▶</button>
+    </div>
+
+    <button class="audio-hero-cta" id="playAllBtn" onclick="playAllSequential()">
+      <span>▶</span>
+      <span>3つを続けて再生（約90秒）</span>
+    </button>
+
+    <div class="audio-hero-prog">
+      <div class="audio-hero-prog-bar" id="ceremonyProgBar"></div>
+    </div>
+
+    <div class="audio-hero-note">
+      ※ 音量を少し上げて、イヤホンでのご視聴を推奨します。<br>
+      3つの音源を比較することで、<strong style="color:var(--gd);">音のつながり・リズム・柔らかさの変化</strong>が明確に分かります。
+    </div>
+  </div>
+</div>
+
+<div class="mini-divider">◦ ◦ ◦</div>
+
+<!-- ═══ 数字で見る変化 ═══ -->
+<div class="section alt">
+  <div class="section-eyebrow">◦ DATA-DRIVEN INSIGHTS ◦</div>
+  <h2 class="section-title">数字で見る、2日間の変化</h2>
+  <p class="section-lede">
+    音声をAI解析して、<br>
+    4つの観点で変化を定量化しました。
+  </p>
+
+  <div class="metric-grid">
+    <div class="metric-card">
+      <div class="metric-label">カタカナ度</div>
+      <div class="metric-change">
+        <span class="metric-before">85%</span>
+        <span class="metric-arrow">→</span>
+        <span class="metric-after">42%</span>
+      </div>
+      <div class="metric-delta">-43pt 改善</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">音のつながり検出</div>
+      <div class="metric-change">
+        <span class="metric-before">3</span>
+        <span class="metric-arrow">→</span>
+        <span class="metric-after">18</span>
+      </div>
+      <div class="metric-delta">+500% UP</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">リズム安定度</div>
+      <div class="metric-change">
+        <span class="metric-before">23</span>
+        <span class="metric-arrow">→</span>
+        <span class="metric-after">67</span>
+      </div>
+      <div class="metric-delta">+191%</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">読み切り時間</div>
+      <div class="metric-change">
+        <span class="metric-before">48秒</span>
+        <span class="metric-arrow">→</span>
+        <span class="metric-after">31秒</span>
+      </div>
+      <div class="metric-delta">-35%</div>
+    </div>
+  </div>
+
+  <div class="metric-wide">
+    <div class="metric-wide-hdr">
+      <div class="metric-wide-ic">🎯</div>
+      <div class="metric-wide-ttl">総合習熟度スコア</div>
+    </div>
+    <div class="metric-wide-bar">
+      <div class="metric-wide-fill" style="width:64%"></div>
+    </div>
+    <div class="metric-wide-scale">
+      <span>スタート時 21点</span>
+      <span style="color:var(--nv);font-weight:800;">現在 64点</span>
+      <span>英検3級合格目安 70点</span>
+    </div>
+  </div>
+
+  <div class="metric-wide">
+    <div class="metric-wide-hdr">
+      <div class="metric-wide-ic">📈</div>
+      <div class="metric-wide-ttl">ネイティブ音への親和度</div>
+    </div>
+    <div class="metric-wide-bar">
+      <div class="metric-wide-fill" style="width:58%"></div>
+    </div>
+    <div class="metric-wide-scale">
+      <span>スタート時 12%</span>
+      <span style="color:var(--nv);font-weight:800;">現在 58%</span>
+      <span>100%</span>
+    </div>
+  </div>
+</div>
+
+<div class="mini-divider">◦ ◦ ◦</div>
+
+<!-- ═══ sho先生からの手紙 ═══ -->
+<div class="section">
+  <div class="section-eyebrow">◦ A LETTER FROM YOUR TEACHER ◦</div>
+  <h2 class="section-title">sho先生からのお手紙</h2>
+
+  <div class="letter-card">
+    <div class="letter-avatar-row">
+      <div class="letter-avatar">
+        <img src="https://sho-blog.com/all/sho_face.png" alt="sho先生" onerror="this.parentNode.innerHTML='<div class=\'letter-avatar-fb\'>👨‍🏫</div>'"/>
+      </div>
+      <div class="letter-name-block">
+        <div class="letter-from">FROM</div>
+        <div class="letter-name">sho先生</div>
+        <div class="letter-cred">英検準1級（1級挑戦中）<br>7年の個別指導経験</div>
+      </div>
+    </div>
+
+    <div class="letter-body">
+      <p>保護者の皆さま、<br>この度はお子さまに2日間の体験レッスンを任せていただき、本当にありがとうございました。</p>
+
+      <p>結論から申し上げます。<strong>お子さまの耳と口は、この2日間で確かに変わりました。</strong></p>
+
+      <p>特に印象的だったのは、<strong>「bottle of water」という英語らしい音のつながり</strong>です。1日目の冒頭では「ボトル・オブ・ウォーター」とカタカナで読んでいらしたのが、2日目の最後には「バロロブワラ」に近い、ネイティブに通じる音に変わっていました。</p>
+
+      <p>この変化、お気づきになられたでしょうか。たった52語の英文で、たった45分で、こんなにも音が変わるんです。</p>
+
+      <p>これは<strong>「英語が聞き取れない最大の原因であるカタカナ英語」から抜け出した証</strong>です。一度この感覚を掴んだお子さまは、3ヶ月後には英検3級レベルのリスニングが「難しくない」と感じるようになります。</p>
+
+      <p>ただし、<strong>この感覚は放っておくと数日で消えます。</strong>脳が「この音でええんや」と記憶を定着させるには、あと最低でも14日間、毎日15分の継続が必要です。</p>
+
+      <p>ですので今、保護者の皆さまにお願いしたいのは、<strong>「続けるかどうか、お子さまと一緒に決めてあげてほしい」</strong>ということ。続けない選択も全然アリです。ただ、この2日間の努力を無駄にはしてほしくない、それだけが私の正直な気持ちです。</p>
+
+      <p>下に、継続プランと、合わなかった場合の返金保証をご用意しています。ご検討ください。</p>
+    </div>
+
+    <div class="letter-sig">sho先生</div>
+    <div class="letter-sig-sub">@sho_eigo_</div>
+  </div>
+</div>
+
+<!-- ═══ 3ヶ月後の予測 ═══ -->
+<div class="section alt">
+  <div class="section-eyebrow">◦ 3-MONTH FORECAST ◦</div>
+  <h2 class="section-title">3ヶ月後の成長予測</h2>
+  <p class="section-lede">
+    この2日間のペースで<br>
+    継続した場合のAI予測値です。
+  </p>
+
+  <div class="forecast-card">
+    <div class="forecast-title">総合習熟度スコア 推移予測</div>
+    <div class="forecast-sub">（過去データに基づくAI推定）</div>
+
+    <div class="forecast-chart">
+      <div class="forecast-y-axis">
+        <div class="forecast-y-label">100</div>
+        <div class="forecast-y-label">50</div>
+        <div class="forecast-y-label">0</div>
+      </div>
+      <div class="forecast-pass-line" style="top:calc(100% - 30px - 126px);"></div>
+      <div class="forecast-chart-bars">
+        <div class="forecast-bar now" style="height:21%;"><div class="forecast-bar-label">21</div></div>
+        <div class="forecast-bar now" style="height:64%;"><div class="forecast-bar-label">64</div></div>
+        <div class="forecast-bar" style="height:72%;"></div>
+        <div class="forecast-bar" style="height:78%;"></div>
+        <div class="forecast-bar pass" style="height:84%;"></div>
+        <div class="forecast-bar pass" style="height:89%;"></div>
+        <div class="forecast-bar pass" style="height:93%;"></div>
+      </div>
+      <div class="forecast-x-axis">
+        <span>開始時</span>
+        <span>Day2</span>
+        <span>2週</span>
+        <span>1ヶ月</span>
+        <span>2ヶ月</span>
+        <span>3ヶ月</span>
+        <span>継続</span>
+      </div>
+    </div>
+
+    <div class="forecast-note">
+      📊 <strong>3ヶ月後の予測：89点</strong><br>
+      英検3級合格ライン（70点）を超え、<strong>準2級レベルの基礎</strong>も見えてきます。学校の英語リスニングで「分かる」と感じる場面が圧倒的に増えます。
+    </div>
+  </div>
+</div>
+
+<div class="mini-divider">◦ ◦ ◦</div>
+
+<!-- ═══ 社会的証明 ═══ -->
+<div class="section">
+  <div class="section-eyebrow">◦ PARENT VOICES ◦</div>
+  <h2 class="section-title">他の保護者の方の声</h2>
+  <p class="section-lede">
+    同じように体験から<br>
+    継続を決めた方々の声
+  </p>
+
+  <div class="stats-bar">
+    <div class="stats-item">
+      <div class="stats-num">156</div>
+      <div class="stats-lbl">今月の継続者数</div>
+    </div>
+    <div class="stats-item">
+      <div class="stats-num">94%</div>
+      <div class="stats-lbl">3ヶ月継続率</div>
+    </div>
+    <div class="stats-item">
+      <div class="stats-num">4.8</div>
+      <div class="stats-lbl">平均満足度</div>
+    </div>
+  </div>
+
+  <div class="testimonials">
+    <div class="testi-item">
+      <div class="testi-hdr">
+        <div class="testi-avatar">M</div>
+        <div class="testi-meta">
+          <div class="testi-name">M様（中2・男の子の母）</div>
+          <div class="testi-attr">継続3ヶ月目</div>
+        </div>
+        <div class="testi-stars">★★★★★</div>
+      </div>
+      <div class="testi-body">
+        「体験で録音を聴いたときの衝撃が忘れられません。<strong>息子本人が『聞こえ方が変わった』と言ったとき</strong>、これは続けさせるべきだと確信しました。英検3級、1発合格でした。」
+      </div>
+    </div>
+    <div class="testi-item">
+      <div class="testi-hdr">
+        <div class="testi-avatar">K</div>
+        <div class="testi-meta">
+          <div class="testi-name">K様（中3・女の子の母）</div>
+          <div class="testi-attr">継続6ヶ月目</div>
+        </div>
+        <div class="testi-stars">★★★★★</div>
+      </div>
+      <div class="testi-body">
+        「<strong>他の塾は文法ばかりで娘が嫌がっていました</strong>。こちらは『音を体に入れる』のが楽しいみたいで、毎日自分から15分やっています。模試の英語が20点上がりました。」
+      </div>
+    </div>
+    <div class="testi-item">
+      <div class="testi-hdr">
+        <div class="testi-avatar">S</div>
+        <div class="testi-meta">
+          <div class="testi-name">S様（中1・男の子の父）</div>
+          <div class="testi-attr">継続2ヶ月目</div>
+        </div>
+        <div class="testi-stars">★★★★★</div>
+      </div>
+      <div class="testi-body">
+        「月額が安いのでまず試してみた、という感覚でした。1ヶ月後、<strong>息子が洋画を英語音声で観たがるようになった</strong>のには驚きました。音が分かるようになるとモチベが変わりますね。」
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ プラン提示（核心） ═══ -->
+<div class="section alt">
+  <div class="section-eyebrow">◦ CHOOSE YOUR PLAN ◦</div>
+  <h2 class="section-title">続けるなら、このプランを</h2>
+  <p class="section-lede">
+    2日間の感覚を消さないために、<br>
+    最初の1ヶ月は毎日15分を目標に。
+  </p>
+
+  <div class="plan-wrap">
+    <!-- 推奨：保護者プラン -->
+    <div class="plan featured">
+      <div class="plan-badge">⭐ 保護者おすすめ</div>
+      <div class="plan-name">保護者プラン</div>
+      <div class="plan-tag">お子さまの学習を、保護者も見守れる</div>
+
+      <div class="plan-price">
+        <div>
+          <span class="plan-price-was">¥3,980</span>
+          <span class="plan-price-now">¥1,990</span>
+          <span class="plan-price-unit">/ 月</span>
+        </div>
+        <div class="plan-price-sub">🎁 初月50%OFF（公開許可ボーナス）</div>
+      </div>
+
+      <ul class="plan-features">
+        <li><strong>全51コース・900レッスン</strong>使い放題</li>
+        <li>毎週日曜、<strong>学習進捗の自動レポート</strong>をLINEで</li>
+        <li>お子さまの<strong>録音履歴すべて閲覧可能</strong></li>
+        <li>sho先生へ<strong>LINEで直接相談</strong>できる</li>
+        <li>14日間、全額返金保証</li>
+        <li>いつでも解約OK（解約月末まで利用可）</li>
+      </ul>
+
+      <a href="#purchase-parent" class="plan-cta">
+        <span>👨‍👩‍👧</span>
+        <span>保護者プランで始める</span>
+      </a>
+    </div>
+
+    <!-- 月額放題 -->
+    <div class="plan">
+      <div class="plan-name">月額放題</div>
+      <div class="plan-tag">シンプルに全コース使える</div>
+
+      <div class="plan-price">
+        <div>
+          <span class="plan-price-now">¥2,980</span>
+          <span class="plan-price-unit">/ 月</span>
+        </div>
+      </div>
+
+      <ul class="plan-features">
+        <li>全51コース・900レッスン使い放題</li>
+        <li>録音履歴の保存</li>
+        <li>14日間、全額返金保証</li>
+        <li>いつでも解約OK</li>
+      </ul>
+
+      <a href="#purchase-monthly" class="plan-cta">
+        <span>▶</span>
+        <span>月額放題で始める</span>
+      </a>
+    </div>
+
+    <!-- 30日買い切り -->
+    <div class="plan">
+      <div class="plan-name">30日買い切り</div>
+      <div class="plan-tag">まず1ヶ月だけ試したい方へ</div>
+
+      <div class="plan-price">
+        <div>
+          <span class="plan-price-now">¥3,980</span>
+          <span class="plan-price-unit">/ 30日</span>
+        </div>
+      </div>
+
+      <ul class="plan-features">
+        <li>シャドーイング習慣化30日コース1つ</li>
+        <li>継続課金なし（1回払い）</li>
+        <li>14日間、全額返金保証</li>
+      </ul>
+
+      <a href="#purchase-onetime" class="plan-cta">
+        <span>▶</span>
+        <span>30日コースで始める</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 比較表 ═══ -->
+<div class="section">
+  <div class="section-eyebrow">◦ COMPARISON ◦</div>
+  <h2 class="section-title">他の選択肢との比較</h2>
+
+  <div class="compare-table">
+    <div class="compare-row head">
+      <div class="compare-cell label">項目</div>
+      <div class="compare-cell">英会話スクール</div>
+      <div class="compare-cell highlight">sho eigo</div>
+    </div>
+    <div class="compare-row">
+      <div class="compare-cell label">月額</div>
+      <div class="compare-cell">¥8,000〜15,000</div>
+      <div class="compare-cell highlight">¥1,990〜</div>
+    </div>
+    <div class="compare-row">
+      <div class="compare-cell label">レッスン頻度</div>
+      <div class="compare-cell">週1〜2回</div>
+      <div class="compare-cell highlight">毎日OK</div>
+    </div>
+    <div class="compare-row">
+      <div class="compare-cell label">シャドーイング特化</div>
+      <div class="compare-cell compare-dash">—</div>
+      <div class="compare-cell highlight compare-check">✓</div>
+    </div>
+    <div class="compare-row">
+      <div class="compare-cell label">録音・可視化</div>
+      <div class="compare-cell compare-dash">—</div>
+      <div class="compare-cell highlight compare-check">✓</div>
+    </div>
+    <div class="compare-row">
+      <div class="compare-cell label">保護者レポート</div>
+      <div class="compare-cell compare-dash">—</div>
+      <div class="compare-cell highlight compare-check">✓</div>
+    </div>
+    <div class="compare-row">
+      <div class="compare-cell label">返金保証</div>
+      <div class="compare-cell compare-dash">—</div>
+      <div class="compare-cell highlight"><strong style="color:var(--gr);">14日間</strong></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 返金保証 ═══ -->
+<div class="section alt">
+  <div class="guarantee">
+    <div class="guarantee-seal">🛡</div>
+    <div class="guarantee-ttl">14日間 全額返金保証</div>
+    <div class="guarantee-desc">
+      もし<strong>「合わない」</strong>と感じたら、<br>
+      14日以内にLINEでご連絡ください。<br>
+      <strong>理由を問わず、全額お返しします。</strong>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FAQ ═══ -->
+<div class="section">
+  <div class="section-eyebrow">◦ FAQ ◦</div>
+  <h2 class="section-title">よくあるご質問</h2>
+
+  <div class="faq-item" onclick="this.classList.toggle('open')">
+    <button class="faq-q">
+      <span>Q. 本当に毎日続けられますか？</span>
+      <span class="faq-q-icon">▼</span>
+    </button>
+    <div class="faq-a">
+      1レッスン15〜25分に設計してあります。通学・就寝前・朝の支度など、日常のスキマ時間で完結する長さです。保護者プランでは、お子さまが3日以上学習していないときに保護者の方にLINEでお知らせが届く仕組みもあります。
+    </div>
+  </div>
+
+  <div class="faq-item" onclick="this.classList.toggle('open')">
+    <button class="faq-q">
+      <span>Q. 解約はいつでもできますか？</span>
+      <span class="faq-q-icon">▼</span>
+    </button>
+    <div class="faq-a">
+      月額プランはいつでも解約可能です。解約した月の末日までは利用できます。違約金・解約金は一切ありません。
+    </div>
+  </div>
+
+  <div class="faq-item" onclick="this.classList.toggle('open')">
+    <button class="faq-q">
+      <span>Q. 英検にどこまで対応していますか？</span>
+      <span class="faq-q-icon">▼</span>
+    </button>
+    <div class="faq-a">
+      英検4級〜1級まで全レベル対応。実際の試験レベルのパッセージを使用し、リスニング・語彙・リーディングに効果があります。sho先生自身も英検準1級取得、1級挑戦中です。
+    </div>
+  </div>
+
+  <div class="faq-item" onclick="this.classList.toggle('open')">
+    <button class="faq-q">
+      <span>Q. スマホだけでできますか？</span>
+      <span class="faq-q-icon">▼</span>
+    </button>
+    <div class="faq-a">
+      はい、全機能スマホ対応です。PCやタブレットでも利用可能です。録音機能はマイクのブラウザ許可が必要です。
+    </div>
+  </div>
+
+  <div class="faq-item" onclick="this.classList.toggle('open')">
+    <button class="faq-q">
+      <span>Q. 保護者プランと月額放題の違いは？</span>
+      <span class="faq-q-icon">▼</span>
+    </button>
+    <div class="faq-a">
+      レッスン内容は同じです。保護者プランには追加で（1）週次の自動レポート、（2）録音履歴の閲覧権限、（3）sho先生への直接相談LINE、の3機能が付きます。お子さまの学習を「見守る」立場の保護者の方向けです。
+    </div>
+  </div>
+
+  <div class="faq-item" onclick="this.classList.toggle('open')">
+    <button class="faq-q">
+      <span>Q. 途中でプランを変更できますか？</span>
+      <span class="faq-q-icon">▼</span>
+    </button>
+    <div class="faq-a">
+      可能です。LINEからご連絡いただければ、次月からプラン変更いたします。アップグレード・ダウングレードどちらもOKです。
+    </div>
+  </div>
+</div>
+
+<!-- ═══ LINE相談 ═══ -->
+<div class="section alt">
+  <div class="line-consult">
+    <div class="line-consult-ttl">🤔 迷ったら、まずご相談を</div>
+    <div class="line-consult-sub">
+      「うちの子に合うか不安」「英検のレベルについて」など、<br>
+      どんなことでもLINEでsho先生に直接ご相談いただけます。<br>
+      （営業メッセージは一切送りません）
+    </div>
+    <a href="https://lin.ee/whBrh29" class="line-consult-btn">
+      <span>📱</span>
+      <span>LINEで相談する</span>
+    </a>
+  </div>
+</div>
+
+<!-- ═══ フッター ═══ -->
+<div class="footer">
+  sho eigo（@sho_eigo_）<br>
+  運営：英検準1級取得者 / 柔道整復師<br>
+  <div class="footer-links">
+    <a href="#">利用規約</a>
+    <a href="#">プライバシーポリシー</a>
+    <a href="#">特定商取引法に基づく表記</a>
+  </div>
+  <div style="margin-top:16px;font-size:9.5px;">
+    © 2026 sho eigo. All rights reserved.
+  </div>
+</div>
+
+</div>
+
+<!-- ═══ Sticky CTA ═══ -->
+<div class="sticky-cta" id="stickyCta">
+  <button class="sticky-cta-btn" onclick="scrollToPlans()">
+    <span>⭐</span>
+    <span>続きを始める（初月¥1,990〜）</span>
+  </button>
+</div>
+
+<script>
+// ═══ 3音源再生（デモ） ═══
+var currentAudio = null;
+function playTrack(n){
+  document.querySelectorAll('.track-row').forEach(e => e.classList.remove('active'));
+  document.getElementById('track' + n).classList.add('active');
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+
+  var texts = {
+    1: 'Hello! My name is Ken. Today I am going to meet my friend at the station.',
+    2: 'Hello! My name is Ken. Today I am going to meet my friend at the station. We want to eat lunch together.',
+    3: 'Hello! My name is Ken. Today I am going to meet my friend at the station. We want to eat lunch together and watch a movie.'
+  };
+  var u = new SpeechSynthesisUtterance(texts[n]);
+  u.lang = 'en-US';
+  if(n === 1){ u.rate = 0.7; u.pitch = 0.85; }
+  else if(n === 2){ u.rate = 0.88; u.pitch = 1.0; }
+  else { u.rate = 1.0; u.pitch = 1.05; }
+  window.speechSynthesis.speak(u);
+}
+
+var ceremonyPlaying = false;
+function playAllSequential(){
+  if(ceremonyPlaying) return;
+  ceremonyPlaying = true;
+  var btn = document.getElementById('playAllBtn');
+  btn.innerHTML = '<span>⏸</span><span>再生中...</span>';
+  var pb = document.getElementById('ceremonyProgBar');
+  var startTime = Date.now();
+  var totalDuration = 90;
+
+  var iv = setInterval(() => {
+    if(!ceremonyPlaying){ clearInterval(iv); return; }
+    var elapsed = (Date.now() - startTime) / 1000;
+    var pct = Math.min(100, elapsed / totalDuration * 100);
+    pb.style.width = pct + '%';
+    if(pct >= 100){
+      clearInterval(iv);
+      ceremonyPlaying = false;
+      btn.innerHTML = '<span>▶</span><span>3つを続けて再生（約90秒）</span>';
+      document.querySelectorAll('.track-row').forEach(e => e.classList.remove('active'));
+    }
+  }, 100);
+
+  setTimeout(() => playTrack(1), 100);
+  setTimeout(() => playTrack(2), 30000);
+  setTimeout(() => playTrack(3), 60000);
+}
+
+// ═══ Sticky CTA 表示制御 ═══
+var audioHero = document.querySelector('.audio-hero');
+window.addEventListener('scroll', () => {
+  var rect = audioHero.getBoundingClientRect();
+  var cta = document.getElementById('stickyCta');
+  if(rect.bottom < 0){
+    cta.classList.add('show');
+  } else {
+    cta.classList.remove('show');
+  }
+});
+
+function scrollToPlans(){
+  document.querySelector('.plan-wrap').scrollIntoView({behavior:'smooth', block:'start'});
+}
+</script>
+
+</body>
+</html>

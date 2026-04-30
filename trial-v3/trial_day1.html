@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#1a2d45">
+<title>Day1 体験レッスン｜sho eigo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --nv:#1a2d45; --nv2:#243b5b; --nv3:#0f1f35;
+  --gd:#c9a84c; --gd2:#e8c96a; --gd3:#a88832;
+  --bg:#faf9f5; --card:#fff;
+  --txt:#1a2d45; --mut:#6a7891; --mut2:#9aa3b5;
+  --bd:#e5e0d0; --bd2:#d9d1b8;
+  --rd:#c84a4a; --gr:#4a8c5f; --bl:#3a6ea5; --or:#e08a3a; --pr:#7b4ab5;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.06);
+  --shadow-md:0 2px 8px rgba(0,0,0,.08);
+  --shadow-lg:0 8px 24px rgba(0,0,0,.12);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;}
+html,body{background:var(--bg);color:var(--txt);font-family:'Noto Sans JP',sans-serif;font-size:16px;line-height:1.7;overflow-x:hidden;}
+button{font-family:inherit;cursor:pointer;}
+
+.app{max-width:640px;margin:0 auto;min-height:100vh;padding-bottom:120px;position:relative;}
+
+/* ═══ ヘッダー ═══ */
+.hd{background:var(--nv);color:white;padding:11px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;border-bottom:2px solid var(--gd);}
+.hd-logo{font-weight:900;letter-spacing:3px;font-size:15px;}
+.hd-logo em{color:var(--gd);font-style:normal;}
+.hd-badge{margin-left:auto;font-size:9.5px;color:var(--gd);letter-spacing:2px;font-weight:700;background:rgba(201,168,76,.12);padding:4px 10px;border-radius:99px;}
+
+/* ═══ プログレスバー ═══ */
+.prog{padding:8px 14px 6px;display:flex;gap:3px;background:white;border-bottom:1px solid var(--bd);}
+.prog-dot{flex:1;height:3px;background:var(--bd);border-radius:99px;transition:all .4s;}
+.prog-dot.active{background:var(--gd);box-shadow:0 0 8px rgba(201,168,76,.6);}
+.prog-dot.done{background:var(--gr);}
+
+/* ═══ ステップタイトル ═══ */
+.sh{padding:20px 18px 12px;background:white;border-bottom:2px solid var(--gd);}
+.sh-meta{font-size:10px;color:var(--gd);letter-spacing:2.5px;font-weight:700;margin-bottom:6px;}
+.sh-ttl{font-size:20px;font-weight:900;color:var(--nv);line-height:1.4;}
+.sh-sub{font-size:12px;color:var(--mut);margin-top:6px;font-weight:500;}
+
+/* ═══ コンテンツエリア ═══ */
+.body{padding:16px;}
+.step{display:none;animation:fi .4s ease;}
+.step.active{display:block;}
+@keyframes fi{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ═══ カード ═══ */
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;margin-bottom:14px;overflow:hidden;box-shadow:var(--shadow-sm);}
+.card-ttl{background:var(--nv);color:white;padding:11px 14px;font-size:13px;font-weight:700;letter-spacing:1px;display:flex;align-items:center;gap:8px;}
+.card-ttl .ic{font-size:16px;}
+.card-body{padding:16px;}
+
+/* ═══ 引用・メッセージ ═══ */
+.pb{padding:13px 14px;border-radius:8px;margin-bottom:12px;font-size:13px;line-height:1.8;}
+.pb:last-child{margin-bottom:0;}
+.pb.rd{background:#fef3f2;border-left:3px solid var(--rd);color:#6b2626;}
+.pb.bl{background:#f0f7fb;border-left:3px solid var(--bl);color:#234c6e;}
+.pb.gr{background:#f1f7f3;border-left:3px solid var(--gr);color:#2a5c3f;}
+.pb.yl{background:#fef8e7;border-left:3px solid var(--gd);color:#6b5420;}
+.pb.pr{background:#f5f0fa;border-left:3px solid var(--pr);color:#4a2e70;}
+
+/* ═══ パッセージ表示 ═══ */
+.passage{background:linear-gradient(135deg,#faf7ee,#fffdf4);border:2px solid var(--gd);border-radius:14px;padding:20px 18px;margin-bottom:14px;position:relative;}
+.passage-ttl{font-size:10px;letter-spacing:2px;color:var(--gd);font-weight:700;margin-bottom:10px;text-align:center;}
+.passage-en{font-family:'Inter',sans-serif;font-size:15px;line-height:2;color:var(--nv);font-weight:500;text-align:left;margin-bottom:12px;}
+.passage-en strong{color:var(--gd);font-weight:700;}
+.passage-ja{font-size:11.5px;color:var(--mut);line-height:1.9;padding-top:12px;border-top:1px dashed var(--bd);}
+.passage-meta{position:absolute;top:-10px;right:12px;background:var(--gd);color:var(--nv);font-size:10px;font-weight:900;padding:2px 10px;border-radius:99px;letter-spacing:1px;}
+
+/* ═══ カタカナ比較 ═══ */
+.sound-compare{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;}
+.sc-kata,.sc-real{padding:14px 12px;border-radius:10px;text-align:center;}
+.sc-kata{background:#fef3f2;border:1px solid #f5c9c9;}
+.sc-real{background:#f1f7f3;border:1px solid #c5dfcd;}
+.sc-lbl{font-size:10px;font-weight:700;letter-spacing:1.5px;margin-bottom:8px;}
+.sc-lbl.rd{color:var(--rd);}
+.sc-lbl.gr{color:var(--gr);}
+.sc-txt{font-size:13px;font-weight:700;color:var(--nv);line-height:1.5;}
+
+/* ═══ ルールボックス ═══ */
+.rule-box{background:#faf6ea;border:1px solid var(--bd2);border-radius:10px;padding:14px;margin-bottom:10px;}
+.rule-title{font-weight:800;color:var(--nv);font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.rule-title .num{background:var(--gd);color:var(--nv);width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;flex-shrink:0;}
+.rule-ex{font-size:12px;color:var(--mut);line-height:1.9;}
+.tag{background:var(--nv);color:white;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;margin:0 3px;display:inline-block;}
+
+/* ═══ 文リスト ═══ */
+.sent-row{background:white;border:1px solid var(--bd);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;transition:all .2s;}
+.sent-row.done{background:#f1f7f3;border-color:var(--gr);}
+.sent-num{background:var(--nv);color:white;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;flex-shrink:0;}
+.sent-row.done .sent-num{background:var(--gr);}
+.sent-main{flex:1;min-width:0;}
+.sent-en{font-family:'Inter',sans-serif;font-weight:600;font-size:14px;color:var(--nv);margin-bottom:3px;line-height:1.5;}
+.sent-ja{font-size:11px;color:var(--mut);margin-bottom:6px;}
+.sent-hint{font-size:11px;color:var(--bl);background:#f0f7fb;padding:6px 10px;border-radius:6px;margin-top:6px;}
+.sent-btns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+.sb{background:var(--nv);color:white;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;}
+.sb:active{transform:scale(.95);}
+.sb.slow{background:var(--bl);}
+.sb.fast{background:var(--or);}
+
+/* ═══ 録音UI ═══ */
+.rec-console{background:linear-gradient(135deg,var(--nv),var(--nv2));color:white;border-radius:16px;padding:22px 18px;text-align:center;margin-bottom:14px;box-shadow:var(--shadow-lg);position:relative;overflow:hidden;}
+.rec-console::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,transparent,var(--gd),transparent);animation:shimmer 3s linear infinite;}
+@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.rec-label{font-size:10px;letter-spacing:3px;color:var(--gd);font-weight:700;margin-bottom:6px;}
+.rec-status{font-size:11px;color:rgba(255,255,255,.7);margin-bottom:10px;}
+.rec-status.live{color:#ff6b6b;animation:bl 1s infinite;}
+@keyframes bl{50%{opacity:.3}}
+.rec-timer{font-family:'Inter',sans-serif;font-size:36px;font-weight:900;color:white;margin-bottom:14px;font-variant-numeric:tabular-nums;letter-spacing:2px;}
+.rec-wave{height:50px;background:rgba(0,0,0,.3);border-radius:6px;margin-bottom:16px;overflow:hidden;border:1px solid rgba(255,255,255,.1);}
+.rec-wave canvas{width:100%;height:100%;display:block;}
+.rec-controls{display:flex;gap:10px;justify-content:center;align-items:center;}
+.rec-btn-main{width:70px;height:70px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#ff6b6b,#cc2020);border:none;color:white;font-size:24px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(204,32,32,.5),inset 0 2px 4px rgba(255,255,255,.3);transition:all .2s;}
+.rec-btn-main:active{transform:scale(.92);}
+.rec-btn-main.stop{background:radial-gradient(circle at 30% 30%,#666,#222);box-shadow:0 4px 20px rgba(0,0,0,.5),inset 0 2px 4px rgba(255,255,255,.2);}
+.rec-tip{font-size:11px;color:rgba(255,255,255,.6);margin-top:14px;line-height:1.7;}
+.rec-playback{background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);border-radius:10px;padding:14px;margin-top:14px;display:none;}
+.rec-playback.show{display:block;}
+.rec-playback audio{width:100%;margin-top:8px;}
+.rec-playback-lbl{font-size:11px;color:var(--gd);font-weight:700;letter-spacing:1px;}
+
+/* ═══ ネクストボタン ═══ */
+.nav-btns{display:flex;gap:10px;padding:16px;position:fixed;bottom:0;left:50%;transform:translateX(-50%);max-width:640px;width:100%;background:linear-gradient(to top,white 60%,transparent);z-index:50;}
+.nav-btn{flex:1;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:800;transition:all .2s;}
+.nav-btn:active{transform:scale(.97);}
+.nav-btn.prev{background:white;border:1.5px solid var(--bd);color:var(--mut);max-width:100px;}
+.nav-btn.next{background:var(--nv);color:white;box-shadow:0 4px 14px rgba(26,45,69,.25);}
+.nav-btn.next.gold{background:linear-gradient(135deg,var(--gd),var(--gd2));color:var(--nv);box-shadow:0 4px 16px rgba(201,168,76,.4);}
+.nav-btn.next.disabled{background:#ccc;color:#777;box-shadow:none;opacity:.6;}
+
+/* ═══ sho先生モーダル ═══ */
+.sho-modal{position:fixed;inset:0;background:rgba(10,20,35,.94);z-index:9999;display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px 18px;backdrop-filter:blur(8px);}
+.sho-modal.open{display:flex;animation:fi .3s;}
+.sho-face-wrap{position:relative;margin-bottom:16px;}
+.sho-face-ring{width:120px;height:120px;border-radius:50%;overflow:hidden;border:4px solid var(--gd);box-shadow:0 0 0 6px rgba(201,168,76,.25),0 8px 32px rgba(0,0,0,.5);}
+.sho-face-ring img{width:100%;height:auto;object-fit:cover;object-position:center 8%;transform:scale(1.3) translateY(8px);}
+.sho-face-glow{position:absolute;inset:-10px;border-radius:50%;background:radial-gradient(circle,rgba(201,168,76,.35),transparent 70%);animation:gl 1.5s infinite;pointer-events:none;}
+@keyframes gl{0%,100%{opacity:.4}50%{opacity:1}}
+.sho-step-badge{position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);background:var(--gd);color:var(--nv);font-size:11px;font-weight:900;padding:3px 12px;border-radius:99px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);letter-spacing:.5px;}
+.sho-bubble-wrap{width:100%;max-width:360px;position:relative;margin-bottom:16px;}
+.sho-bubble-wrap::before{content:"";position:absolute;top:-10px;left:50%;transform:translateX(-50%);border:9px solid transparent;border-bottom-color:white;}
+.sho-bubble{background:white;border-radius:18px;padding:18px 20px;box-shadow:0 4px 20px rgba(0,0,0,.3);max-height:40vh;overflow-y:auto;}
+.sho-bubble-ttl{font-size:12px;font-weight:800;color:var(--gd);letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.sho-bubble-text{font-size:13.5px;line-height:1.9;color:var(--nv);white-space:pre-wrap;font-weight:500;}
+.sho-modal-btns{display:flex;flex-direction:column;gap:10px;width:100%;max-width:360px;}
+.sho-btn-main{background:linear-gradient(135deg,var(--gd),var(--gd2));color:var(--nv);border:none;border-radius:14px;padding:16px;font-size:15px;font-weight:800;box-shadow:0 4px 16px rgba(201,168,76,.4);}
+.sho-btn-sub{background:rgba(255,255,255,.1);color:white;border:1.5px solid rgba(255,255,255,.25);border-radius:14px;padding:13px;font-size:13px;font-weight:600;}
+.sho-btn-sub:disabled{opacity:.4;}
+
+/* ═══ 目標選択 ═══ */
+.goal-grid{display:grid;gap:10px;}
+.goal-card{background:white;border:2px solid var(--bd);border-radius:12px;padding:14px;display:flex;gap:12px;align-items:center;transition:all .2s;}
+.goal-card:active{transform:scale(.98);}
+.goal-card.selected{border-color:var(--gd);background:#faf7ee;box-shadow:0 4px 14px rgba(201,168,76,.2);}
+.goal-card.selected::after{content:"✓";background:var(--gd);color:var(--nv);width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;margin-left:auto;}
+.goal-emoji{font-size:26px;flex-shrink:0;}
+.goal-info{flex:1;min-width:0;}
+.goal-ttl{font-size:14px;font-weight:800;color:var(--nv);margin-bottom:2px;}
+.goal-desc{font-size:11px;color:var(--mut);}
+
+/* ═══ ビフォーアフター比較 ═══ */
+.compare-box{background:linear-gradient(135deg,var(--nv),var(--nv2));color:white;border-radius:16px;padding:20px 18px;margin-bottom:14px;}
+.compare-ttl{font-size:14px;font-weight:900;text-align:center;margin-bottom:16px;letter-spacing:1.5px;color:var(--gd);}
+.compare-row{background:rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;transition:all .2s;}
+.compare-row.before{border-left:4px solid #9aa0a6;}
+.compare-row.after{border-left:4px solid var(--gd);background:rgba(201,168,76,.18);}
+.compare-info{flex:1;min-width:0;}
+.compare-lbl{font-size:11px;color:var(--gd);font-weight:800;letter-spacing:1px;margin-bottom:2px;}
+.compare-meta{font-size:10px;color:rgba(255,255,255,.65);}
+.compare-play{background:var(--gd);color:var(--nv);border:none;width:42px;height:42px;border-radius:50%;font-size:15px;flex-shrink:0;transition:all .2s;}
+.compare-play:active{transform:scale(.9);}
+.compare-play.playing{background:white;}
+.compare-takeaway{background:rgba(201,168,76,.1);border-radius:10px;padding:12px;margin-top:12px;text-align:center;}
+.compare-takeaway-ic{font-size:24px;margin-bottom:4px;}
+.compare-takeaway-ttl{font-size:13px;color:var(--gd);font-weight:800;margin-bottom:2px;}
+.compare-takeaway-sub{font-size:11px;color:rgba(255,255,255,.7);}
+
+/* ═══ エンディング ═══ */
+.ending-hero{background:linear-gradient(135deg,#faf7ee,#fffdf4);border:2px solid var(--gd);border-radius:16px;padding:24px 18px;text-align:center;margin-bottom:14px;}
+.ending-emoji{font-size:50px;margin-bottom:10px;}
+.ending-ttl{font-size:20px;font-weight:900;color:var(--nv);margin-bottom:8px;line-height:1.4;}
+.ending-sub{font-size:13px;color:var(--mut);line-height:1.9;}
+
+.tip-box{background:#faf6ea;border:1px dashed var(--gd);border-radius:10px;padding:12px 14px;margin:10px 0;font-size:12px;color:#6b5420;line-height:1.8;}
+.tip-box strong{color:var(--nv);}
+
+/* ═══ タイマー/ロック ═══ */
+.timer-lock{background:#fef8e7;border:1px solid var(--gd);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.timer-lock-ic{font-size:22px;}
+.timer-lock-txt{font-size:12px;color:#6b5420;line-height:1.6;}
+.timer-lock-time{font-weight:800;color:var(--nv);font-variant-numeric:tabular-nums;}
+
+/* ═══ 隠しクラス ═══ */
+.hidden{display:none !important;}
+</style>
+</head>
+<body>
+
+<!-- sho先生モーダル -->
+<div class="sho-modal" id="shoModal">
+  <div class="sho-face-wrap">
+    <div class="sho-face-glow"></div>
+    <div class="sho-face-ring">
+      <img src="https://sho-blog.com/all/sho_face.png" alt="sho先生" onerror="this.style.display='none';this.parentNode.innerHTML='<div style=\'width:100%;height:100%;background:linear-gradient(135deg,#c9a84c,#e8c96a);display:flex;align-items:center;justify-content:center;font-size:42px;\'>👨‍🏫</div>'"/>
+    </div>
+    <div class="sho-step-badge" id="shoStepBadge">Step 0</div>
+  </div>
+  <div class="sho-bubble-wrap">
+    <div class="sho-bubble">
+      <div class="sho-bubble-ttl" id="shoBubbleTtl">🔍 カタカナ英語の正体</div>
+      <div class="sho-bubble-text" id="shoBubbleText"></div>
+    </div>
+  </div>
+  <div class="sho-modal-btns">
+    <button class="sho-btn-main" onclick="shoProceed()">▶ やってみよ！</button>
+    <button class="sho-btn-sub" id="shoBtnMore" onclick="shoMore()">🔍 もっと詳しく</button>
+  </div>
+</div>
+
+<div class="app">
+
+<!-- ヘッダー -->
+<div class="hd">
+  <div class="hd-logo">sho <em>eigo</em></div>
+  <div class="hd-badge">◦ 無料体験 DAY 1 ◦</div>
+</div>
+
+<!-- プログレス -->
+<div class="prog" id="progBar"></div>
+
+<!-- ステップタイトル -->
+<div class="sh">
+  <div class="sh-meta" id="stepMeta">DAY 1 · STEP 0 / 9</div>
+  <div class="sh-ttl" id="stepTtl">ようこそ！</div>
+  <div class="sh-sub" id="stepSub">まず、何のために英語やりたい？</div>
+</div>
+
+<div class="body">
+
+<!-- ══════════════════════════════════════ -->
+<!-- Step 0: オープニング＋目標選択 -->
+<!-- ══════════════════════════════════════ -->
+<div class="step active" id="step0">
+  <div class="card">
+    <div class="card-ttl"><span class="ic">🎬</span>sho先生からのメッセージ</div>
+    <div class="card-body">
+      <div class="pb pr">
+        よう来たな〜！sho先生やで😊<br><br>
+        これから2日間、一緒に英語の音を体に入れていくで。<br>
+        約25分で、<strong>絶対に「変わった！」って感じられるレッスン</strong>に設計したから、最後までついてきてな！
+      </div>
+      <div class="pb yl">
+        💡 <strong>今日のゴール</strong><br>
+        ・カタカナ英語から抜け出す3つの音のルールを知る<br>
+        ・今の声と、練習後の声を聴き比べる<br>
+        ・1日でどれだけ変われるか体感する
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl"><span class="ic">🎯</span>まず、目標を教えて</div>
+    <div class="card-body">
+      <p style="font-size:12px;color:var(--mut);margin-bottom:12px;">君が英語やりたい理由はどれ？（複数選んでOK）</p>
+      <div class="goal-grid">
+        <div class="goal-card" onclick="toggleGoal(this,'travel')"><div class="goal-emoji">✈️</div><div class="goal-info"><div class="goal-ttl">海外旅行で話したい</div><div class="goal-desc">ハワイ、韓国、いろんな国で自由に</div></div></div>
+        <div class="goal-card" onclick="toggleGoal(this,'eiken')"><div class="goal-emoji">📚</div><div class="goal-info"><div class="goal-ttl">英検に合格したい</div><div class="goal-desc">3級・準2級・2級合格を目指す</div></div></div>
+        <div class="goal-card" onclick="toggleGoal(this,'school')"><div class="goal-emoji">🏫</div><div class="goal-info"><div class="goal-ttl">学校の英語で点数を上げたい</div><div class="goal-desc">定期テストやリスニング対策</div></div></div>
+        <div class="goal-card" onclick="toggleGoal(this,'movie')"><div class="goal-emoji">🎬</div><div class="goal-info"><div class="goal-ttl">映画を字幕なしで観たい</div><div class="goal-desc">Netflix、YouTube、字幕なしで</div></div></div>
+        <div class="goal-card" onclick="toggleGoal(this,'future')"><div class="goal-emoji">🌍</div><div class="goal-info"><div class="goal-ttl">将来のために</div><div class="goal-desc">大学入試、留学、就職で</div></div></div>
+      </div>
+      <div class="tip-box" id="goalTip" style="display:none;">
+        ✨ <strong>ええやん！</strong>その気持ち、このあと2日間の体験でしっかり実感できるで。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ -->
+<!-- Step 1: ビフォー音読録音 -->
+<!-- ══════════════════════════════════════ -->
+<div class="step" id="step1">
+  <div class="card">
+    <div class="card-ttl"><span class="ic">🎙</span>今の声を残そう</div>
+    <div class="card-body">
+      <div class="pb bl">
+        <strong>これから2日間の「スタート地点」を記録するで。</strong><br>
+        下の英文を、今の実力そのままで音読してほしい。上手く読めんくても全然OK。<br>
+        <strong>「今」を残すことが大事やねん。</strong>
+      </div>
+      <div class="tip-box">
+        💡 <strong>録音のコツ</strong><br>
+        ・マイクから15cm程度離す<br>
+        ・緊張せず、普段のトーンで<br>
+        ・つまったり読み間違えても気にしない
+      </div>
+    </div>
+  </div>
+
+  <div class="passage">
+    <div class="passage-meta">52 words</div>
+    <div class="passage-ttl">◦ A Day with My Friend ◦</div>
+    <div class="passage-en">
+      Hello! My name is Ken.<br>
+      Today I'm going to meet my friend at the station.<br>
+      We want to eat lunch together and watch a movie.<br>
+      I got a good grade on my English test yesterday, so I feel really happy.<br>
+      I'd like to have a bottle of water first.<br>
+      Let's go!
+    </div>
+    <div class="passage-ja">
+      こんにちは！ぼくの名前はケンです。今日は駅で友達に会います。一緒にお昼ごはんを食べて映画を見るつもりです。昨日、英語のテストでいい点が取れて、すごくうれしい気分です。まずは水を一本ほしいな。さあ、行こう！
+    </div>
+  </div>
+
+  <div class="rec-console">
+    <div class="rec-label">◦ BEFORE RECORDING ◦</div>
+    <div class="rec-status" id="rec1Status">準備ができたらボタンを押してな</div>
+    <div class="rec-timer" id="rec1Timer">00:00</div>
+    <div class="rec-wave"><canvas id="rec1Wave"></canvas></div>
+    <div class="rec-controls">
+      <button class="rec-btn-main" id="rec1Btn" onclick="toggleRec(1)">🎙</button>
+    </div>
+    <div class="rec-tip">録音は最長60秒。ゆっくり読んでOK</div>
+    <div class="rec-playback" id="rec1Playback">
+      <div class="rec-playback-lbl">✅ ビフォー録音 保存完了</div>
+      <audio controls id="rec1Audio"></audio>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ -->
+<!-- Step 2: パッセージ解説 -->
+<!-- ══════════════════════════════════════ -->
+<div class="step" id="step2">
+  <div class="card">
+    <div class="card-ttl"><span class="ic">📖</span>この英文を深く知ろう</div>
+    <div class="card-body">
+      <div class="pb bl">
+        今録音した文章を、<strong>カタカナ英語じゃない読み方</strong>で解剖してみよう！<br>
+        これから練習する大事なフレーズが、ぜんぶこの中に入ってるで👀
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl"><span class="ic">🎯</span>注目すべき6フレーズ</div>
+    <div class="card-body">
+      <div class="sent-row">
+        <div class="sent-num">1</div>
+        <div class="sent-main">
+          <div class="sent-en">Today I'm going to meet my friend</div>
+          <div class="sent-ja">今日、友達に会いに行く</div>
+          <div class="sent-hint">💡 <strong>going to → ガナ</strong>（Reduction）、<strong>meet my → ミーマイ</strong>（Linking）</div>
+          <div class="sent-btns">
+            <button class="sb slow" onclick="spk('Today I\\'m going to meet my friend',0.7)">🐢 ゆっくり</button>
+            <button class="sb" onclick="spk('Today I\\'m going to meet my friend',1)">▶ ネイティブ</button>
+          </div>
+        </div>
+      </div>
+      <div class="sent-row">
+        <div class="sent-num">2</div>
+        <div class="sent-main">
+          <div class="sent-en">We want to eat lunch together</div>
+          <div class="sent-ja">お昼を一緒に食べたい</div>
+          <div class="sent-hint">💡 <strong>want to → ワナ</strong>（Reduction）</div>
+          <div class="sent-btns">
+            <button class="sb slow" onclick="spk('We want to eat lunch together',0.7)">🐢 ゆっくり</button>
+            <button class="sb" onclick="spk('We want to eat lunch together',1)">▶ ネイティブ</button>
+          </div>
+        </div>
+      </div>
+      <div class="sent-row">
+        <div class="sent-num">3</div>
+        <div class="sent-main">
+          <div class="sent-en">I got a good grade</div>
+          <div class="sent-ja">いい点が取れた</div>
+          <div class="sent-hint">💡 <strong>got a → ガラ</strong>（Flap T）</div>
+          <div class="sent-btns">
+            <button class="sb slow" onclick="spk('I got a good grade',0.7)">🐢 ゆっくり</button>
+            <button class="sb" onclick="spk('I got a good grade',1)">▶ ネイティブ</button>
+          </div>
+        </div>
+      </div>
+      <div class="sent-row">
+        <div class="sent-num">4</div>
+        <div class="sent-main">
+          <div class="sent-en">a bottle of water</div>
+          <div class="sent-ja">水を一本</div>
+          <div class="sent-hint">💡 <strong>bottle of → バロロブ</strong>（Flap T×2）、<strong>water → ワラ</strong></div>
+          <div class="sent-btns">
+            <button class="sb slow" onclick="spk('a bottle of water',0.7)">🐢 ゆっくり</button>
+            <button class="sb" onclick="spk('a bottle of water',1)">▶ ネイティブ</button>
+          </div>
+        </div>
+      </div>
+      <div class="sent-row">
+        <div class="sent-num">5</div>
+        <div class="sent-main">
+          <div class="sent-en">I feel really happy</div>
+          <div class="sent-ja">本当にうれしい</div>
+          <div class="sent-hint">💡 <strong>really → リリィ</strong>（Flap L的な軽さ）</div>
+          <div class="sent-btns">
+            <button class="sb slow" onclick="spk('I feel really happy',0.7)">🐢 ゆっくり</button>
+            <button class="sb" onclick="spk('I feel really happy',1)">▶ ネイティブ</button>
+          </div>
+        </div>
+      </div>
+      <div class="sent-row">
+        <div class="sent-num">6</div>
+        <div class="sent-main">
+          <div class="sent-en">Let's go!</div>
+          <div class="sent-ja">行こう！</div>
+          <div class="sent-hint">💡 <strong>Let's → レッツ</strong>（短く軽く）</div>
+          <div class="sent-btns">
+            <button class="sb slow" onclick="spk('Let\\'s go',0.7)">🐢 ゆっくり</button>
+            <button class="sb" onclick="spk('Let\\'s go',1)">▶ ネイティブ</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ -->
+<!-- Step 3: 3つの音のルール -->
+<!-- ══════════════════════════════════════ -->
+<div class="step" id="step3">
+  <div class="card">
+    <div class="card-ttl"><span class="ic">🔑</span>カタカナ英語の正体</div>
+    <div class="card-body">
+      <div class="pb rd">
+        なぜ日本人の英語が通じないのか？<br>
+        答えは<strong>「カタカナの音で覚えているから」</strong>やねん。
+      </div>
+      <div class="sound-compare">
+        <div class="sc-kata">
+          <div class="sc-lbl rd">❌ カタカナ英語</div>
+          <div class="sc-txt">ウォント・トゥ</div>
+        </div>
+        <div class="sc-real">
+          <div class="sc-lbl gr">✅ 本物の音</div>
+          <div class="sc-txt">ワナ</div>
+        </div>
+      </div>
+      <div style="text-align:center;margin:12px 0;">
+        <button class="sb" onclick="spk('I want to go',1)" style="padding:10px 20px;font-size:12px;">🔊 実際に聴く</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl"><span class="ic">📖</span>知るべき3つのルール</div>
+    <div class="card-body">
+      <div class="rule-box">
+        <div class="rule-title"><span class="num">1</span>Linking（リンキング）音がつながる</div>
+        <div class="rule-ex">子音で終わる+母音で始まる→1つの音に<br><span class="tag">meet my</span>→「ミーマイ」<span class="tag">pick up</span>→「ピッカップ」</div>
+      </div>
+      <div class="rule-box">
+        <div class="rule-title"><span class="num">2</span>Flap T（フラップT）tがラ行になる</div>
+        <div class="rule-ex">母音に挟まれたtがラ行のように響く<br><span class="tag">water</span>→「ワラ」<span class="tag">got a</span>→「ガラ」</div>
+      </div>
+      <div class="rule-box">
+        <div class="rule-title"><span class="num">3</span>Reduction（リダクション）音が弱まる</div>
+        <div class="rule-ex">機能語（to/for/of）が速い会話で弱くなる<br><span class="tag">want to</span>→「ワナ」<span class="tag">going to</span>→「ガナ」</div>
+      </div>
+      <div class="pb gr">
+        ✨ <strong>このレッスンの52語の中に、この3つのルールが全部詰まってるで！</strong><br>
+        これから一緒に、耳と口に叩き込んでいこか。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ -->
+<!-- Step 4: リスニング -->
+<!-- ══════════════════════════════════════ -->
+<div class="step" id="step4">
+  <div class="card">
+    <div class="card-ttl"><span class="ic">👂</span>リスニング（3回）</div>
+    <div class="card-body">
+      <div class="pb bl">
+        まずは<strong>聞き取ろうとせず</strong>、音のリズムと流れだけに集中してな。<br>
+        「あ、こんな音なんや」って感じるだけでOKやで。
+      </div>
+    </div>
+  </div>
+
+  <div class="passage">
+    <div class="passage-meta">全文</div>
+    <div class="passage-ttl">◦ A Day with My Friend ◦</div>
+    <div class="passage-en" id="p4en">
+      Hello! My name is Ken.<br>
+      Today I'm going to meet my friend at the station.<br>
+      We want to eat lunch together and watch a movie.<br>
+      I got a good grade on my English test yesterday, so I feel really happy.<br>
+      I'd like to have a bottle of water first.<br>
+      Let's go!
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl"><span class="ic">🔊</span>速度を変えて3回</div>
+    <div class="card-body">
+      <div style="display:grid;gap:10px;">
+        <button class="sb slow" style="padding:14px;font-size:13px;" onclick="spkPassage(0.7)">🐢 1回目（0.7倍速）</button>
+        <button class="sb" style="padding:14px;font-size:13px;background:var(--nv);" onclick="spkPassage(0.85)">▶ 2回目（0.85倍速）</button>
+        <button class="sb fast" style="padding:14px;font-size:13px;" onclick="spkPassage(1.0)">⚡ 3回目（通常速度）</button>
+      </div>
+      <div class="tip-box">
+        💡 <strong>3回聴き終わったら「次へ」を押してな。</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ -->
+<!-- Step 5: シャドーイング -->
+<!-- ══════════════════════════════════════ -->
+<div class="step" id="step5">
+  <div class="card">
+    <div class="card-ttl"><span class="ic">🗣</span>シャドーイング（音声の影を追う）</div>
+    <div class="card-body">
+      <div class="pb bl">
+        シャドーイングは<strong>音声が聞こえた直後を、0.5秒遅れで追いかけて声を出す</strong>練習。<br>
+        テキストは見ながらでOK。まずは<strong>ゆっくり版</strong>から！
+      </div>
+    </div>
+  </div>
+
+  <div class="passage">
+    <div class="passage-en">
+      Hello! My name is Ken.<br>
+      Today I'm going to meet my friend at the station.<br>
+      We want to eat lunch together and watch a movie.<br>
+      I got a good grade on my English test yesterday, so I feel really happy.<br>
+      I'd like to have a bottle of water first.<br>
+      Let's go!
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl"><span class="ic">🎯</span>3段階の速度で練習</div>
+    <div class="card-body">
+      <div style="display:grid;gap:10px;">
+        <button class="sb slow" style="padding:14px;font-size:13px;" onclick="spkPassage(0.7)">🐢 ゆっくり（0.7倍速）× 3回</button>
+        <button class="sb" style="padding:14px;font-size:13px;background:var(--nv);" onclick="spkPassage(0.85)">▶ 標準（0.85倍速）× 3回</button>
+        <button class="sb fast" style="padding:14px;font-size:13px;" onclick="spkPassage(1.0)">⚡ 通常速度 × 3回</button>
+      </div>
+      <div class="tip-box">
+        💡 <strong>ポイント</strong><br>
+        ・音を真似することだけに集中<br>
+        ・口が忙しくなる感覚を楽しんで<br>
+        ・できなくても気にしない！何度も繰り返すのが一番
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ -->
+<!-- Step 6: オーバーラッピング -->
+<!-- ══════════════════════════════════════ -->
+<div class="step" id="step6">
+  <div class="card">
+    <div class="card-ttl"><span class="ic">🎵</span>オーバーラッピング（音声に声を重ねる）</div>
+    <div class="card-body">
+      <div class="pb bl">
+        今度は<strong>音声と同時に声を重ねる</strong>練習。シャドーイングより難しいけど、リズム感が体に染み込むで！
+      </div>
+      <div class="pb yl">
+        💡 <strong>テキスト見ながらでOK</strong><br>
+        音声と完全に重なるように、<strong>音声と同時にスタート</strong>して声を出してな。
+      </div>
+    </div>
+  </div>
+
+  <div class="passage">
+    <div class="passage-en">
+      Hello! My name is Ken.<br>
+      Today I'm going to meet my friend at the station.<br>
+      We want to eat lunch together and watch a movie.<br>
+      I got a good grade on my English test yesterday, so I feel really happy.<br>
+      I'd like to have a bottle of water first.<br>
+      Let's go!
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl"><span class="ic">🎯</span>3段階でチャレンジ</div>
+    <div class="card-body">
+      <div style="display:grid;gap:10px;">
+        <button class="sb slow" style="padding:14px;font-size:13px;" onclick="spkPassage(0.7)">🐢 ゆっくり版 × 2回</button>
+        <button class="sb" style="padding:14px;font-size:13px;background:var(--nv);" onclick="spkPassage(0.85)">▶ 標準版 × 2回</button>
+        <button class="sb fast" style="padding:14px;font-size:13px;" onclick="spkPassage(1.0)">⚡ 通常速度 × 2回</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ -->
+<!-- Step 7: 音読練習 -->
+<!-- ══════════════════════════════════════ -->
+<div class="step" id="step7">
+  <div class="card">
+    <div class="card-ttl"><span class="ic">📚</span>音読（音声なしで自力）</div>
+    <div class="card-body">
+      <div class="pb gr">
+        最後は<strong>音声なし</strong>で、自分のリズムで最後まで読んでみよう！<br>
+        シャドーイングで覚えた音を思い出しながら😊
+      </div>
+      <div class="tip-box">
+        💡 <strong>音読3回やってみて</strong><br>
+        ・1回目：ゆっくり、1つずつの音を意識<br>
+        ・2回目：少し速く、リズムを感じて<br>
+        ・3回目：自然な速度で、気持ちを込めて
+      </div>
+    </div>
+  </div>
+
+  <div class="passage">
+    <div class="passage-en">
+      Hello! My name is Ken.<br>
+      Today I'm going to meet my friend at the station.<br>
+      We want to eat lunch together and watch a movie.<br>
+      I got a good grade on my English test yesterday, so I feel really happy.<br>
+      I'd like to have a bottle of water first.<br>
+      Let's go!
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body" style="text-align:center;">
+      <div style="font-size:13px;color:var(--mut);margin-bottom:10px;">どうしても音が思い出せんときは、もう一度聴いてOK</div>
+      <button class="sb" style="padding:12px 28px;background:var(--nv);" onclick="spkPassage(0.85)">🔊 もう一度聴く</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ -->
+<!-- Step 8: アフター音読録音 + 比較 -->
+<!-- ══════════════════════════════════════ -->
+<div class="step" id="step8">
+  <div class="card">
+    <div class="card-ttl"><span class="ic">✨</span>ラスト録音！今の声を残そう</div>
+    <div class="card-body">
+      <div class="pb pr">
+        25分、ほんまにお疲れさま！<br>
+        今から<strong>Day1アフター録音</strong>をするで。<br>
+        <strong>Step1のビフォー録音と聴き比べ</strong>て、変化を耳で確認しよう✨
+      </div>
+      <div class="pb yl">
+        💡 <strong>完璧じゃなくてOK</strong><br>
+        ちょっとでも「さっきと違う」と感じられたら大勝利。それが2日目につながるで！
+      </div>
+    </div>
+  </div>
+
+  <div class="passage">
+    <div class="passage-meta">52 words</div>
+    <div class="passage-ttl">◦ A Day with My Friend ◦</div>
+    <div class="passage-en">
+      Hello! My name is Ken.<br>
+      Today I'm going to meet my friend at the station.<br>
+      We want to eat lunch together and watch a movie.<br>
+      I got a good grade on my English test yesterday, so I feel really happy.<br>
+      I'd like to have a bottle of water first.<br>
+      Let's go!
+    </div>
+  </div>
+
+  <div class="rec-console" style="background:linear-gradient(135deg,var(--gd3),var(--gd));">
+    <div class="rec-label" style="color:white;">◦ AFTER RECORDING ◦</div>
+    <div class="rec-status" id="rec2Status">準備ができたらボタンを押してな</div>
+    <div class="rec-timer" id="rec2Timer">00:00</div>
+    <div class="rec-wave"><canvas id="rec2Wave"></canvas></div>
+    <div class="rec-controls">
+      <button class="rec-btn-main" id="rec2Btn" onclick="toggleRec(2)">🎙</button>
+    </div>
+    <div class="rec-tip" style="color:rgba(255,255,255,.8);">録音は最長60秒</div>
+    <div class="rec-playback" id="rec2Playback">
+      <div class="rec-playback-lbl">✅ アフター録音 保存完了</div>
+      <audio controls id="rec2Audio"></audio>
+    </div>
+  </div>
+
+  <!-- 比較ボックス（録音後表示） -->
+  <div id="compareBox" class="hidden">
+    <div class="compare-box">
+      <div class="compare-ttl">◦ Day1 の成長 ◦</div>
+      <div class="compare-row before">
+        <div class="compare-info">
+          <div class="compare-lbl">🎙 BEFORE（25分前）</div>
+          <div class="compare-meta">スタート地点の君</div>
+        </div>
+        <button class="compare-play" onclick="playRec(1)">▶</button>
+      </div>
+      <div class="compare-row after">
+        <div class="compare-info">
+          <div class="compare-lbl">⭐ AFTER（たった今）</div>
+          <div class="compare-meta">1日練習した君</div>
+        </div>
+        <button class="compare-play" onclick="playRec(2)">▶</button>
+      </div>
+      <div class="compare-takeaway">
+        <div class="compare-takeaway-ic">🎧</div>
+        <div class="compare-takeaway-ttl">音の違い、聞こえた？</div>
+        <div class="compare-takeaway-sub">これが25分でできた変化やで</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ -->
+<!-- Step 9: Day1 完了 -->
+<!-- ══════════════════════════════════════ -->
+<div class="step" id="step9">
+  <div class="ending-hero">
+    <div class="ending-emoji">🎉</div>
+    <div class="ending-ttl">Day1 完走！<br>ほんまにお疲れさま</div>
+    <div class="ending-sub">
+      25分間、集中して取り組んでくれてありがとう。<br>
+      Day1の音の変化、しっかり感じてくれたやろか？
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl"><span class="ic">⏰</span>続きは明日</div>
+    <div class="card-body">
+      <div class="pb yl">
+        <strong>Day2は明日の朝、解放されるで🌅</strong><br>
+        人の脳は24時間で約7割を忘れる性質がある。でもこれ、悪いことやない。<br>
+        <strong>「忘れて、もう一度やる」が定着の最大のコツ</strong>やねん。
+      </div>
+      <div class="pb bl">
+        💡 <strong>明日やること</strong><br>
+        ・同じパッセージを短く復習<br>
+        ・最後の音読録音（Day2アフター）<br>
+        ・3つの録音を1本にまとめて、成長を確認
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl"><span class="ic">📬</span>Day2の案内はLINEで</div>
+    <div class="card-body" style="text-align:center;">
+      <p style="font-size:13px;color:var(--mut);line-height:1.9;margin-bottom:14px;">
+        LINEを友だち追加しておくと、<br>
+        明日の朝6:00にDay2の案内が届くで📱
+      </p>
+      <a href="https://lin.ee/whBrh29" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#06C755;color:white;text-decoration:none;padding:15px 32px;border-radius:12px;font-weight:800;font-size:14px;box-shadow:0 4px 14px rgba(6,199,85,.3);">
+        📱 LINEで続きを受け取る
+      </a>
+    </div>
+  </div>
+
+  <div class="tip-box" style="text-align:center;">
+    💭 <strong>今日の君の録音、明日の自分と聴き比べるで</strong><br>
+    楽しみにしててな〜✨
+  </div>
+</div>
+
+</div>
+
+<!-- ナビボタン -->
+<div class="nav-btns">
+  <button class="nav-btn prev" id="navPrev" onclick="prevStep()">← 戻る</button>
+  <button class="nav-btn next" id="navNext" onclick="nextStep()">次へ →</button>
+</div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// Step管理
+// ═══════════════════════════════════════════
+var currentStep = 0;
+var TOTAL_STEPS = 10; // 0-9
+var selectedGoals = [];
+var recordings = {1:null, 2:null}; // Before, After
+var lessonStartTime = Date.now();
+
+// ═══ ステップごとのメタ情報 ═══
+var STEP_META = {
+  0:{meta:'DAY 1 · STEP 0 / 9', ttl:'ようこそ！', sub:'まず、何のために英語やりたい？'},
+  1:{meta:'DAY 1 · STEP 1 / 9', ttl:'今の声を録音しよう', sub:'ビフォー録音【音源①】'},
+  2:{meta:'DAY 1 · STEP 2 / 9', ttl:'パッセージ解説', sub:'カタカナ英語の罠を見つけよう'},
+  3:{meta:'DAY 1 · STEP 3 / 9', ttl:'3つの音のルール', sub:'カタカナ英語からの脱却'},
+  4:{meta:'DAY 1 · STEP 4 / 9', ttl:'リスニング', sub:'音のリズムを体感しよう'},
+  5:{meta:'DAY 1 · STEP 5 / 9', ttl:'シャドーイング', sub:'音声の影を追って声を出す'},
+  6:{meta:'DAY 1 · STEP 6 / 9', ttl:'オーバーラッピング', sub:'音声に自分の声を重ねる'},
+  7:{meta:'DAY 1 · STEP 7 / 9', ttl:'音読練習', sub:'音声なしで自力で読む'},
+  8:{meta:'DAY 1 · STEP 8 / 9', ttl:'最後の録音', sub:'アフター録音【音源②】＋比較'},
+  9:{meta:'DAY 1 · 完走', ttl:'Day1 完走！', sub:'明日のDay2で集大成へ'}
+};
+
+// ═══ sho先生モーダル ═══
+var SHO_EXPLAIN = {
+  0:{name:'ようこそ',emoji:'🎬',text:'よう来たな〜！sho先生やで😊\nこれから2日間、君と一緒に英語の音と向き合うで。\nまずは「なぜ英語やりたいか」教えてな！\n気持ちを言葉にすると、脳がその目標に向かって働き始めるねん。'},
+  1:{name:'ビフォー録音',emoji:'🎙',text:'これが今日の一番大事な録音や。\n上手く読もうとせんでええ。\n「今、この瞬間の君の声」を残すのが目的。\n2日間が終わったとき、この録音が宝物になるで✨'},
+  2:{name:'パッセージ解説',emoji:'📖',text:'さっき録音した文章の中に、\nカタカナ英語の罠がいっぱい隠れてるで！\n6つのキーフレーズを一つずつ一緒に見ていこう。\n「あ、こう発音するんや」って発見があるはずや😊'},
+  3:{name:'3つのルール',emoji:'🔑',text:'英語が通じない最大の原因は「カタカナの音で覚えている」こと。\nそれを変えるのが「3つの音のルール」や！\nLinking・Flap T・Reduction、\n覚えなくていいから、まず「音を体感」することに集中してな！'},
+  4:{name:'リスニング',emoji:'👂',text:'聞き取ろうとせんでええ。\n「音のリズム」だけ感じて。\n意味を追うと耳が疲れるから、まずは音楽を聴くみたいに流し聴きでOK！\n速度を変えて3回、リラックスして聴いてみよか。'},
+  5:{name:'シャドーイング',emoji:'🗣',text:'音声の0.5秒後ろを、影のように追いかけて声を出すで！\nテキスト見ながらでOK、最初は絶対うまくいかへん。\nそれが普通やから気にせず。\n口がしんどくなるくらい繰り返すのが一番効く！'},
+  6:{name:'オーバーラッピング',emoji:'🎵',text:'次は音声と同時に声を出す「オーバーラッピング」！\nこれ、シャドーイングより難しいけど、\nリズム感が一気に体に入るで🎧\n最初はズレてもOK、繰り返すうちに合ってくる！'},
+  7:{name:'音読',emoji:'📚',text:'最後は音声なしで、自分の力で読んでみよう！\nここまで練習した音を思い出しながら、\n3回くらい読んでみて。\n意外と口が動くことに驚くはずやで😊'},
+  8:{name:'アフター録音',emoji:'✨',text:'ラスト！\nビフォーと同じ文章をもう一度録音するで。\nここで大事なのは「完璧に読む」ことやなくて、\n「さっきと違う自分」を残すこと。\n録音が終わったら、25分前の自分と聴き比べよう！'},
+  9:{name:'Day1完走',emoji:'🎉',text:'ほんまによう頑張った！\nDay1で音の変化を感じられた君やから、\nDay2はもっと深く定着するで。\n今日はしっかり休んで、明日の朝6:00、LINEで案内届くから楽しみにしててな✨'}
+};
+
+var SHO_DETAIL = {
+  0:'【2日間の流れ】\nDay1（今日）：25分\n ・音のルールを知る\n ・ビフォー録音\n ・3種類の練習\n ・アフター録音\n\nDay2（明日）：20分\n ・短い復習\n ・最後の録音\n ・3つの音源を聴き比べ',
+  1:'【録音のコツ】\n・マイクから15cm離れる\n・普段のトーンでOK\n・つまっても気にしない\n・30-60秒で読み終わる\n・読み間違えても止めずに進む',
+  2:'【なぜ解説が大事？】\n音だけ覚えても「意味」がわからないと定着しない。\nキーフレーズを意識することで、\n次のシャドーイングで「あ、これか！」と気付ける。\nこれが脳への定着を最速化するで。',
+  3:'【3つのルール深堀り】\n\n① Linking：\n 子音+母音=1音\n 例：meet my → ミーマイ\n\n② Flap T：\n 母音+t+母音 → ラ行\n 例：water → ワラ\n\n③ Reduction：\n 機能語が弱く短く\n 例：want to → ワナ',
+  4:'【リスニングのポイント】\n・全部聞き取れなくてOK\n・意味より「音の流れ」\n・単語単位じゃなく「塊」で捉える\n・3回聴く理由：\n 1回目 全体の印象\n 2回目 リズムを感じる\n 3回目 カタカナとのズレを意識',
+  5:'【シャドーイングのコツ】\n・音声スタート → 0.5秒後から声\n・テキスト見ながらでOK\n・最初はズレてOK\n・口が忙しくなる感覚を楽しむ\n・完璧を目指さない\n・何度も繰り返すのが最強',
+  6:'【オーバーラッピングの効果】\n・音声と同時に声を出す\n・テキスト見ながらでOK\n・リズム感が体に染み込む\n・シャドーイングより難しい\n・慣れれば音の変化が実感できる',
+  7:'【音読3回のやり方】\n1回目：ゆっくり\n →音を思い出す\n2回目：標準速度\n →リズムを意識\n3回目：少し速く\n →気持ちを込める',
+  8:'【ビフォーアフター比較】\n・Step1の録音と聴き比べる\n・違いが小さくても気にしない\n・少しの変化=大きな成長\n・「あ、さっきと違う」と\n 自分で気付けることが大事',
+  9:'【24時間ルール】\nエビングハウスの忘却曲線より：\n・24時間後 67%忘れる\n・でも再学習すると定着率UP\n\n明日Day2で同じ文章をやるから、\n記憶が強固になるで。\n寝ることも脳にとって重要な学習やで😊'
+};
+
+var shoCurrentStep = 0;
+
+function showShoModal(n){
+  var d = SHO_EXPLAIN[n];
+  if(!d) return;
+  shoCurrentStep = n;
+  document.getElementById('shoStepBadge').textContent = 'Step ' + n + ' ' + d.emoji;
+  document.getElementById('shoBubbleTtl').textContent = d.emoji + ' ' + d.name;
+  document.getElementById('shoBubbleText').textContent = d.text;
+  document.getElementById('shoBtnMore').disabled = false;
+  document.getElementById('shoBtnMore').textContent = '🔍 もっと詳しく';
+  document.getElementById('shoModal').classList.add('open');
+  // Text-to-speech
+  if(window.speechSynthesis){
+    window.speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(d.text.replace(/\n/g,'。'));
+    u.lang = 'ja-JP'; u.rate = 1.05;
+    setTimeout(() => window.speechSynthesis.speak(u), 200);
+  }
+}
+
+function shoProceed(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  document.getElementById('shoModal').classList.remove('open');
+}
+
+function shoMore(){
+  var d = SHO_DETAIL[shoCurrentStep];
+  if(!d) return;
+  document.getElementById('shoBubbleText').textContent = d;
+  document.getElementById('shoBtnMore').disabled = true;
+  document.getElementById('shoBtnMore').textContent = '✓ 表示中';
+  if(window.speechSynthesis){
+    window.speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(d.replace(/\n/g,'。'));
+    u.lang = 'ja-JP'; u.rate = 1.05;
+    window.speechSynthesis.speak(u);
+  }
+}
+
+// ═══ Step切替 ═══
+function goStep(n){
+  if(n < 0 || n >= TOTAL_STEPS) return;
+  currentStep = n;
+  // Hide all, show current
+  document.querySelectorAll('.step').forEach(e => e.classList.remove('active'));
+  document.getElementById('step' + n).classList.add('active');
+  // Update meta
+  var meta = STEP_META[n];
+  document.getElementById('stepMeta').textContent = meta.meta;
+  document.getElementById('stepTtl').textContent = meta.ttl;
+  document.getElementById('stepSub').textContent = meta.sub;
+  // Update progress
+  var prog = document.getElementById('progBar');
+  prog.innerHTML = '';
+  for(var i = 0; i < TOTAL_STEPS; i++){
+    var d = document.createElement('div');
+    d.className = 'prog-dot' + (i === n ? ' active' : (i < n ? ' done' : ''));
+    prog.appendChild(d);
+  }
+  // Nav buttons
+  document.getElementById('navPrev').style.visibility = n === 0 ? 'hidden' : 'visible';
+  var nx = document.getElementById('navNext');
+  if(n === 0){
+    nx.textContent = selectedGoals.length > 0 ? '次へ →' : '目標を選んで →';
+    nx.classList.toggle('disabled', selectedGoals.length === 0);
+  } else if(n === 1){
+    nx.textContent = recordings[1] ? '次へ →' : '録音してから →';
+    nx.classList.toggle('disabled', !recordings[1]);
+  } else if(n === 8){
+    nx.textContent = recordings[2] ? '次へ →' : '録音してから →';
+    nx.classList.toggle('disabled', !recordings[2]);
+  } else if(n === 9){
+    nx.textContent = '🎉 Day2を楽しみに';
+    nx.classList.add('gold');
+    nx.classList.remove('disabled');
+    nx.onclick = () => alert('明日の朝6:00、LINEで案内が届きます🌅');
+  } else {
+    nx.textContent = '次へ →';
+    nx.classList.remove('disabled', 'gold');
+    nx.onclick = nextStep;
+  }
+  // Scroll top
+  window.scrollTo({top: 0, behavior: 'smooth'});
+  // Show sho modal (except step 0 initial load)
+  if(n > 0 || (n === 0 && window.__shoShown)){
+    setTimeout(() => showShoModal(n), 300);
+  }
+  window.__shoShown = true;
+}
+
+function prevStep(){ if(currentStep > 0) goStep(currentStep - 1); }
+function nextStep(){
+  // Validation
+  if(currentStep === 0 && selectedGoals.length === 0) return;
+  if(currentStep === 1 && !recordings[1]) return;
+  if(currentStep === 8 && !recordings[2]) return;
+  if(currentStep < TOTAL_STEPS - 1) goStep(currentStep + 1);
+}
+
+// ═══ 目標選択 ═══
+function toggleGoal(el, tag){
+  el.classList.toggle('selected');
+  if(el.classList.contains('selected')){
+    selectedGoals.push(tag);
+  } else {
+    selectedGoals = selectedGoals.filter(g => g !== tag);
+  }
+  document.getElementById('goalTip').style.display = selectedGoals.length > 0 ? 'block' : 'none';
+  var nx = document.getElementById('navNext');
+  nx.textContent = selectedGoals.length > 0 ? '次へ →' : '目標を選んで →';
+  nx.classList.toggle('disabled', selectedGoals.length === 0);
+}
+
+// ═══ 音声再生 ═══
+function spk(text, rate){
+  if(!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  var u = new SpeechSynthesisUtterance(text);
+  u.lang = 'en-US'; u.rate = rate || 1;
+  window.speechSynthesis.speak(u);
+}
+
+function spkPassage(rate){
+  var text = 'Hello! My name is Ken. Today I\'m going to meet my friend at the station. We want to eat lunch together and watch a movie. I got a good grade on my English test yesterday, so I feel really happy. I\'d like to have a bottle of water first. Let\'s go!';
+  spk(text, rate);
+}
+
+// ═══ 録音機能 ═══
+var recState = {};
+
+async function toggleRec(idx){
+  if(!recState[idx]) recState[idx] = {on:false, time:0, iv:null, chunks:[], recorder:null, stream:null, audioCtx:null, analyser:null};
+  var s = recState[idx];
+
+  if(!s.on){
+    // Start recording
+    try{
+      s.stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      s.chunks = [];
+      s.recorder = new MediaRecorder(s.stream);
+      s.recorder.ondataavailable = e => { if(e.data.size > 0) s.chunks.push(e.data); };
+      s.recorder.onstop = () => {
+        var blob = new Blob(s.chunks, {type:'audio/webm'});
+        var url = URL.createObjectURL(blob);
+        recordings[idx] = {blob:blob, url:url, timestamp:Date.now()};
+        document.getElementById('rec' + idx + 'Audio').src = url;
+        document.getElementById('rec' + idx + 'Playback').classList.add('show');
+        if(s.stream) s.stream.getTracks().forEach(t => t.stop());
+        if(s.audioCtx) s.audioCtx.close();
+        // Enable next button
+        if(idx === 1 || idx === 2){
+          var nx = document.getElementById('navNext');
+          nx.textContent = '次へ →';
+          nx.classList.remove('disabled');
+        }
+        // Show compare box for Step 8
+        if(idx === 2 && recordings[1]){
+          document.getElementById('compareBox').classList.remove('hidden');
+        }
+      };
+      s.recorder.start();
+      s.on = true;
+      s.time = 0;
+
+      // UI update
+      document.getElementById('rec' + idx + 'Btn').classList.add('stop');
+      document.getElementById('rec' + idx + 'Btn').textContent = '■';
+      document.getElementById('rec' + idx + 'Status').textContent = '● 録音中...';
+      document.getElementById('rec' + idx + 'Status').classList.add('live');
+
+      // Timer
+      s.iv = setInterval(() => {
+        s.time++;
+        var m = String(Math.floor(s.time / 60)).padStart(2,'0');
+        var sc = String(s.time % 60).padStart(2,'0');
+        document.getElementById('rec' + idx + 'Timer').textContent = m + ':' + sc;
+        // Auto-stop at 60s
+        if(s.time >= 60) toggleRec(idx);
+      }, 1000);
+
+      // Waveform
+      s.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      s.analyser = s.audioCtx.createAnalyser();
+      s.analyser.fftSize = 256;
+      s.audioCtx.createMediaStreamSource(s.stream).connect(s.analyser);
+      drawWave(idx, s);
+
+    } catch(err){
+      console.error(err);
+      alert('マイクの使用が許可されていません。ブラウザ設定から許可してください。');
+    }
+  } else {
+    // Stop recording
+    s.on = false;
+    clearInterval(s.iv);
+    if(s.recorder && s.recorder.state === 'recording') s.recorder.stop();
+
+    document.getElementById('rec' + idx + 'Btn').classList.remove('stop');
+    document.getElementById('rec' + idx + 'Btn').textContent = '🎙';
+    document.getElementById('rec' + idx + 'Status').textContent = '✓ 録音完了！下で再生できるで';
+    document.getElementById('rec' + idx + 'Status').classList.remove('live');
+  }
+}
+
+function drawWave(idx, s){
+  var c = document.getElementById('rec' + idx + 'Wave');
+  var ctx = c.getContext('2d');
+  c.width = c.offsetWidth; c.height = c.offsetHeight;
+  var data = new Uint8Array(s.analyser.fftSize);
+  function draw(){
+    if(!s.on) return;
+    requestAnimationFrame(draw);
+    s.analyser.getByteTimeDomainData(data);
+    ctx.fillStyle = 'rgba(0,0,0,.3)';
+    ctx.fillRect(0,0,c.width,c.height);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#c9a84c';
+    ctx.beginPath();
+    var sw = c.width / data.length, x = 0;
+    for(var i = 0; i < data.length; i++){
+      var v = data[i] / 128;
+      var y = v * c.height / 2;
+      if(i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+      x += sw;
+    }
+    ctx.lineTo(c.width, c.height/2);
+    ctx.stroke();
+  }
+  draw();
+}
+
+// ═══ 録音再生 ═══
+var currentPlayingAudio = null;
+function playRec(idx){
+  if(!recordings[idx]){ alert('録音がありません'); return; }
+  if(currentPlayingAudio){ currentPlayingAudio.pause(); currentPlayingAudio = null; }
+  var audio = new Audio(recordings[idx].url);
+  audio.play();
+  currentPlayingAudio = audio;
+}
+
+// ═══ localStorage永続化 ═══
+function saveProgress(){
+  try{
+    localStorage.setItem('sho_day1_progress', JSON.stringify({
+      step: currentStep,
+      goals: selectedGoals,
+      hasRec1: !!recordings[1],
+      hasRec2: !!recordings[2],
+      timestamp: Date.now()
+    }));
+  } catch(e){}
+}
+
+function loadProgress(){
+  try{
+    var data = localStorage.getItem('sho_day1_progress');
+    if(!data) return;
+    var p = JSON.parse(data);
+    // 6時間以内なら復元
+    if(Date.now() - p.timestamp < 6 * 60 * 60 * 1000){
+      if(p.goals) selectedGoals = p.goals;
+      // Note: 録音データはBlobなので復元不可、再録音促す
+    }
+  } catch(e){}
+}
+
+// 録音Blob → Base64変換してlocalStorageに保存（後でDay2で使うため）
+function storeRecordingForDay2(){
+  if(!recordings[2]) return;
+  var reader = new FileReader();
+  reader.onloadend = function(){
+    try{
+      localStorage.setItem('sho_day1_rec_before', recordings[1] ? JSON.stringify({time:recordings[1].timestamp}) : '');
+      localStorage.setItem('sho_day1_rec_after', JSON.stringify({time:recordings[2].timestamp}));
+      // 音源データ自体はBlob URLなので別途処理
+      // 実装段階ではサーバーアップロードを推奨
+    } catch(e){}
+  };
+  reader.readAsDataURL(recordings[2].blob);
+}
+
+// 初期化
+window.addEventListener('DOMContentLoaded', () => {
+  loadProgress();
+  goStep(0);
+  // Day1の冒頭でsho先生モーダル表示
+  setTimeout(() => showShoModal(0), 800);
+});
+
+// Step切替時に進捗保存
+var _origGoStep = goStep;
+goStep = function(n){
+  _origGoStep(n);
+  saveProgress();
+  if(n === 9) storeRecordingForDay2();
+};
+</script>
+
+</body>
+</html>
