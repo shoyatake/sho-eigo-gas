@@ -46,8 +46,9 @@ function handleFollow(event) {
   const userId = event.source.userId;
   const profile = getLineProfile(userId);
   const displayName = profile ? profile.displayName : 'さん';
-  registerUser(userId, displayName, 'SC-MAIN', 0, new Date());
+  const isNewUser = registerUser(userId, displayName, 'SC-MAIN', 0, new Date());
   addTag(userId, 'src_line');
+  if (!isNewUser) return;
   const msg = buildMessage('SC-MAIN', 0, userId);
   if (msg) {
     sendPushMessage(userId, msg);
@@ -207,10 +208,14 @@ function executeUserDeletion(userId) {
 }
 
 function hasAnyReadTag(userId) {
-  for (var n = 0; n <= 11; n++) {
-    if (hasTag(userId, 'read_s' + n)) return true;
+  var data = SpreadsheetApp.openById(CONFIG.SS_ID).getSheetByName('TAGS').getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0] !== userId) continue;
+    var tag = data[i][1];
+    if (typeof tag !== 'string') continue;
+    if (tag === 'trial_click' || tag.indexOf('read_') === 0) return true;
   }
-  return hasTag(userId, 'trial_click');
+  return false;
 }
 
 const SCENARIOS_DATA = {
@@ -272,7 +277,21 @@ function getScenarioStep(scenarioId, stepNum) {
 function buildMessage(scenarioId, stepNum, userId) {
   var step = getScenarioStep(scenarioId, stepNum);
   if (!step || !step.message) return null;
+  if (step.trackingTag && userId) {
+    return wrapTrackingUrls(step.message, userId, step.trackingTag);
+  }
   return step.message;
+}
+
+function wrapTrackingUrls(message, userId, trackingTag) {
+  if (!message || !userId || !trackingTag) return message;
+  if (!CONFIG.GAS_URL || CONFIG.GAS_URL.indexOf('http') !== 0) return message;
+  return message.replace(/https?:\/\/[^\s]+/g, function(url) {
+    return CONFIG.GAS_URL +
+      '?uid=' + encodeURIComponent(userId) +
+      '&tag=' + encodeURIComponent(trackingTag) +
+      '&url=' + encodeURIComponent(url);
+  });
 }
 
 function sendTestDeletionNotice(userId) {
@@ -290,8 +309,9 @@ function registerUser(userId, displayName, scenarioId, stepNum, now) {
   var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   var sheet = ss.getSheetByName('USERS');
   var data = sheet.getDataRange().getValues();
-  for (var i = 1; i < data.length; i++) { if (data[i][0] === userId) return; }
+  for (var i = 1; i < data.length; i++) { if (data[i][0] === userId) return false; }
   sheet.appendRow([userId, displayName, scenarioId, stepNum, now, now]);
+  return true;
 }
 
 function updateUserStep(userId, scenarioId, stepNum, sentAt) {
@@ -406,6 +426,28 @@ function getLineProfile(userId) {
   } catch(e) { return null; }
 }
 
+function sendStepNow(userId, scenarioId, stepNum) {
+  var msg = buildMessage(scenarioId, stepNum, userId);
+  if (!msg) { Logger.log('No message for ' + scenarioId + ' step ' + stepNum); return; }
+  sendPushMessage(userId, msg);
+  updateUserStep(userId, scenarioId, stepNum + 1, new Date());
+  var step = getScenarioStep(scenarioId, stepNum);
+  if (step && step.sendSurvey) { Utilities.sleep(500); sendSurveyButtons(userId); }
+  if (step && step.sendQuiz)   { Utilities.sleep(500); sendQuizButtons(userId); }
+  Logger.log('送信完了: ' + scenarioId + ' step ' + stepNum + ' → ' + userId);
+}
+
+function monitorAdvanceNextStep(userId) {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var data = ss.getSheetByName('USERS').getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0] !== userId) continue;
+    sendStepNow(userId, data[i][2], parseInt(data[i][3]) || 0);
+    return;
+  }
+  Logger.log('ユーザー未登録: ' + userId);
+}
+
 function setupSheets() {
   var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   var sheets = {
@@ -430,4 +472,4 @@ function setupTrigger() {
   });
   ScriptApp.newTrigger('checkAndSendScheduled').timeBased().everyHours(1).create();
   Logger.log('トリガー設定完了');
-                                }
+}
