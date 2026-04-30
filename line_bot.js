@@ -114,10 +114,16 @@ function checkAndSendScheduled() {
     const stepNum    = parseInt(row[3]) || 0;
     const stepSentAt = row[4] ? new Date(row[4]) : null;
     if (!userId || !scenarioId) continue;
+    if (hasTag(userId, 'deleted')) continue;
     const step = getScenarioStep(scenarioId, stepNum);
     if (!step) continue;
     if (!isSendDue(stepSentAt, step.delayDays, step.sendHour, now)) continue;
     if (step.skipIfTag && hasTag(userId, step.skipIfTag)) {
+      updateUserStep(userId, scenarioId, stepNum + 1, now);
+      continue;
+    }
+    if (step.executeDeletion) {
+      executeUserDeletion(userId);
       updateUserStep(userId, scenarioId, stepNum + 1, now);
       continue;
     }
@@ -131,6 +137,7 @@ function checkAndSendScheduled() {
     Utilities.sleep(200);
   }
   checkEngagement();
+  checkDeletionEligibility();
 }
 
 function isSendDue(lastSentAt, delayDays, sendHour, now) {
@@ -148,7 +155,7 @@ function checkEngagement() {
   for (var i = 1; i < users.length; i++) {
     const userId = users[i][0];
     if (!userId) continue;
-    if (hasTag(userId, 'purchased') || hasTag(userId, 'dormant')) continue;
+    if (hasTag(userId, 'purchased') || hasTag(userId, 'dormant') || hasTag(userId, 'deleted')) continue;
     const registeredAt = users[i][5] ? new Date(users[i][5]) : null;
     if (!registeredAt) continue;
     const daysSince = (now - registeredAt) / (1000 * 60 * 60 * 24);
@@ -159,6 +166,45 @@ function checkEngagement() {
       addTag(userId, 'low_engagement');
     }
   }
+}
+
+function checkDeletionEligibility() {
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const tagsSheet = ss.getSheetByName('TAGS');
+  if (!tagsSheet) return;
+  const tagsData = tagsSheet.getDataRange().getValues();
+  const dormantSince = {};
+  for (var i = 1; i < tagsData.length; i++) {
+    if (tagsData[i][1] === 'dormant') {
+      dormantSince[tagsData[i][0]] = tagsData[i][2] ? new Date(tagsData[i][2]) : null;
+    }
+  }
+  const usersSheet = ss.getSheetByName('USERS');
+  const users = usersSheet.getDataRange().getValues();
+  const now = new Date();
+  for (var j = 1; j < users.length; j++) {
+    const userId = users[j][0];
+    if (!userId) continue;
+    if (!dormantSince[userId]) continue;
+    if (hasTag(userId, 'purchased') || hasTag(userId, 'deleted') || hasTag(userId, 'reactivated')) continue;
+    if (users[j][2] === 'SC-DELETE-NOTICE') continue;
+    const daysDormant = (now - dormantSince[userId]) / (1000 * 60 * 60 * 24);
+    if (daysDormant >= 30 && !hasAnyReadTag(userId)) {
+      moveToScenario(userId, 'SC-DELETE-NOTICE', 0);
+    }
+  }
+}
+
+function executeUserDeletion(userId) {
+  if (!userId) return;
+  addTag(userId, 'deleted');
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = ss.getSheetByName('DELETION_LOG') || ss.insertSheet('DELETION_LOG');
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['userId', 'deletedAt', 'reason']);
+    sheet.getRange(1, 1, 1, 3).setBackground('#1a2d45').setFontColor('#fff').setFontWeight('bold');
+  }
+  sheet.appendRow([userId, new Date(), 'auto_inactivity_60d']);
 }
 
 function hasAnyReadTag(userId) {
@@ -207,6 +253,16 @@ const SCENARIOS_DATA = {
     { stepNum: 1, delayDays: 7, sendHour: 8, trackingTag: 'read_dormant',
       message: 'お久しぶりです。\n\n気が向いたときに戻ってきてください。\n\n▼ いつでも体験できます\nhttps://sho-blog.com/all/trial/trial_day1.html' },
   ],
+  'SC-DELETE-NOTICE': [
+    { stepNum: 0, delayDays: 0, sendHour: 9, trackingTag: 'read_del1', skipIfTag: 'reactivated',
+      message: 'お久しぶりです、翔也です。\n\n長くご連絡が取れていないため\n7日後にこのリストから\n自動的に登録解除させていただきます。\n\nもしまだ続けたい気持ちがあれば\n下のリンクから一度反応してください。\n反応があれば解除を取り消します。\n\n▼ 続けたい方はこちら\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+    { stepNum: 1, delayDays: 3, sendHour: 9, trackingTag: 'read_del2', skipIfTag: 'reactivated',
+      message: '先日のメッセージ、届いていますか。\n\nあと4日でこのリストから\n自動解除されます。\n\n最後にもう一度だけ\nお声がけしました。\n\n▼ もう一度試してみる\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+    { stepNum: 2, delayDays: 3, sendHour: 9, trackingTag: 'read_del3', skipIfTag: 'reactivated',
+      message: '明日、自動的に登録解除します。\n\n今までありがとうございました。\n\nもし「やっぱり続けたい」と\n思ったら明日までに\n下のリンクから反応してください。\n\n▼ 最後のチャンス\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+    { stepNum: 3, delayDays: 1, sendHour: 9, trackingTag: null, skipIfTag: 'reactivated',
+      executeDeletion: true, message: null },
+  ],
 };
 
 function getScenarioStep(scenarioId, stepNum) {
@@ -236,6 +292,17 @@ function wrapTrackingUrls(message, userId, trackingTag) {
       '&tag=' + encodeURIComponent(trackingTag) +
       '&url=' + encodeURIComponent(url);
   });
+}
+
+function sendTestDeletionNotice(userId) {
+  if (!userId) return;
+  const steps = SCENARIOS_DATA['SC-DELETE-NOTICE'];
+  for (var i = 0; i < steps.length; i++) {
+    if (steps[i].message) {
+      sendPushMessage(userId, '[テスト配信] ' + steps[i].message);
+      Utilities.sleep(500);
+    }
+  }
 }
 
 function registerUser(userId, displayName, scenarioId, stepNum, now) {
