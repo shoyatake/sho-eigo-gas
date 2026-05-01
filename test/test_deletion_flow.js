@@ -154,7 +154,7 @@ test('checkEngagement does NOT escalate user with read_* tag', () => {
 });
 
 test('checkAndSendScheduled at step 0 sends T-30 message + keep-account button, advances step', () => {
-  const past = new Date(Date.now() - 1000); // delayDays:0 so any past time is due
+  const past = new Date(Date.now() - 2 * 86400000); // 2 days ago - clears sendHour:8 boundary regardless of time-of-day
   ss._sheets.USERS.appendRow([TEST_UID, 'tester', 'SC-DELETION', 0, past, past]);
 
   sandbox.checkAndSendScheduled();
@@ -227,8 +227,8 @@ test('full lifecycle: dormant 31d -> escalate -> step0 send -> keep_account -> b
   let u = rowsByUser('USERS', TEST_UID)[0];
   assert.strictEqual(u[2], 'SC-DELETION');
 
-  // Force step due
-  ss._sheets.USERS.rows[1][4] = new Date(Date.now() - 1000);
+  // Force step due (2 days ago clears sendHour:8 boundary regardless of time-of-day)
+  ss._sheets.USERS.rows[1][4] = new Date(Date.now() - 2 * 86400000);
   sandbox.checkAndSendScheduled();
   assert.strictEqual(pushFetchCount(), 2);
 
