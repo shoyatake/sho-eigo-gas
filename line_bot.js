@@ -18,6 +18,9 @@ const LINE_API = 'https://api.line.me/v2/bot/message';
 
 function doPost(e) {
   try {
+    if (e && e.parameter && e.parameter.action === 'improvement') {
+      return handleImprovementRequest(e);
+    }
     const body = JSON.parse(e.postData.contents);
     body.events.forEach(function(event) {
       if (event.type === 'follow')   handleFollow(event);
@@ -30,6 +33,38 @@ function doPost(e) {
   return ContentService
     .createTextOutput(JSON.stringify({status:'ok'}))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleImprovementRequest(e) {
+  const userId = (e.parameter.uid || '').trim();
+  const content = (e.parameter.content || '').trim();
+  const course = (e.parameter.course || 'main').trim();
+  const category = (e.parameter.category || '').trim();
+  const age = (e.parameter.age || '').trim();
+  if (!userId || !content) {
+    return renderDashboardResult(false, 'uid または内容が空です。');
+  }
+  if (!hasTag(userId, 'mon_active') && !hasTag(userId, 'mon_completed')) {
+    return renderDashboardResult(false, 'モニター参加者として認証できませんでした。');
+  }
+  const meta = [course, category, age].filter(function(v){ return v; }).join(' / ');
+  saveFeedback(userId, 'improvement', '[' + meta + '] ' + content);
+  return renderDashboardResult(true, 'フィードバックを受け取りました。');
+}
+
+function renderDashboardResult(ok, message) {
+  const color = ok ? '#1a2d45' : '#d04b30';
+  const title = ok ? 'ありがとうございます' : '送信できませんでした';
+  const html =
+    '<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>' + title + '</title>' +
+    '<style>body{font-family:"Hiragino Sans","Noto Sans JP",sans-serif;background:#fafaf7;color:#2a2a2a;margin:0;padding:48px 24px;text-align:center;line-height:1.7;}' +
+    'h1{color:' + color + ';font-size:22px;margin-bottom:16px;}p{max-width:480px;margin:0 auto 24px;}' +
+    'a{display:inline-block;background:#1a2d45;color:#fff;padding:12px 24px;border-radius:999px;text-decoration:none;font-weight:700;}</style>' +
+    '</head><body><h1>' + title + '</h1><p>' + message + '</p>' +
+    '<a href="javascript:history.back()">戻る</a></body></html>';
+  return HtmlService.createHtmlOutput(html);
 }
 
 function doGet(e) {
@@ -327,7 +362,7 @@ const SCENARIOS_DATA = {
   ],
   'SC-MONITOR': [
     { stepNum: 0, delayDays: 0, sendHour: 0, trackingTag: 'read_m0',
-      message: 'モニターに参加してくれてありがとうございます。\n翔也です。\n\n10名限定の枠に\n入っていただきました。\n\n■ お渡しするもの\n・1講座 無料プレゼント（参加者全員）\n・口コミを投稿してくれた方には\n　次回サブスク 半額（3ヶ月間）\n\n■ お願いしたいこと\n・14日間、Day 1とDay 2を実際に体験してください\n・5日目と最終日に簡単なアンケートに答えてください\n・気づいたことがあれば「フィードバック」と送ってください\n\nまずは Day 1 から始めましょう。\n\n▼ Day 1 はこちら\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+      message: 'モニターに参加してくれてありがとうございます。\n翔也です。\n\n10名限定の枠に\n入っていただきました。\n\n■ お渡しするもの\n・1講座 無料プレゼント（参加者全員）\n・口コミを投稿してくれた方には\n　次回サブスク 半額（3ヶ月間）\n\n■ お願いしたいこと\n・14日間、Day 1とDay 2を実際に体験してください\n・5日目と最終日に簡単なアンケートに答えてください\n・気づいたことがあれば「フィードバック」と送るか\n　専用ダッシュボードから提出してください\n\n▼ あなた専用ダッシュボード\n{{DASHBOARD_URL}}\n\nまずは Day 1 から始めましょう。\n\n▼ Day 1 はこちら\nhttps://sho-blog.com/all/trial/trial_day1.html' },
     { stepNum: 1, delayDays: 1, sendHour: 8, trackingTag: 'read_m1',
       message: 'おはようございます、翔也です。\n\n昨日のDay 1、いかがでしたか。\n\n今日からDay 2 に進めます。\n音の変化が少しずつ\n見えてくる頃です。\n\n▼ Day 2 はこちら\nhttps://sho-blog.com/all/trial/trial_day2.html' },
     { stepNum: 2, delayDays: 4, sendHour: 8, trackingTag: 'read_m2', sendMonitorMidSurvey: true,
@@ -361,10 +396,17 @@ function getScenarioStep(scenarioId, stepNum) {
 function buildMessage(scenarioId, stepNum, userId) {
   var step = getScenarioStep(scenarioId, stepNum);
   if (!step || !step.message) return null;
-  if (step.trackingTag && userId) {
-    return wrapTrackingUrls(step.message, userId, step.trackingTag);
+  var msg = step.message;
+  if (userId) {
+    msg = msg.replace(/\{\{DASHBOARD_URL\}\}/g,
+      'https://sho-blog.com/monitor/dashboard.html?uid=' + encodeURIComponent(userId));
+    msg = msg.replace(/\{\{DASHBOARD_PARENT_URL\}\}/g,
+      'https://sho-blog.com/monitor/parent/dashboard.html?uid=' + encodeURIComponent(userId));
   }
-  return step.message;
+  if (step.trackingTag && userId) {
+    return wrapTrackingUrls(msg, userId, step.trackingTag);
+  }
+  return msg;
 }
 
 function wrapTrackingUrls(message, userId, trackingTag) {
