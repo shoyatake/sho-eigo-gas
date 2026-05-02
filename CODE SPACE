@@ -1,0 +1,21 @@
+cd trial-v3
+read -s -p "FTPパスワード: " FTPPASS; echo
+
+curl -T trial_day1.html \
+  "ftp://sv16546.xserver.jp/sho-blog.com/public_html/all/trial/v3/trial_day1.html" \
+  --user "xs672802:$FTPPASS" --ftp-pasv --ftp-create-dirs
+
+curl -T trial_day2.html \
+  "ftp://sv16546.xserver.jp/sho-blog.com/public_html/all/trial/v3/trial_day2.html" \
+  --user "xs672802:$FTPPASS" --ftp-pasv
+
+curl -T parent_report.html \
+  "ftp://sv16546.xserver.jp/sho-blog.com/public_html/parent/report.html" \
+  --user "xs672802:$FTPPASS" --ftp-pasv
+
+for u in https://sho-blog.com/all/trial/v3/trial_day1.html \
+         https://sho-blog.com/all/trial/v3/trial_day2.html \
+         https://sho-blog.com/parent/report.html ; do
+  printf "%s → " "$u"; curl -sI "$u" | head -1
+done
+unset FTPPASS
