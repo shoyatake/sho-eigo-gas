@@ -1,0 +1,5 @@
+# clasp が GAS にアップロードするファイルを限定する。
+# 既定で全 .js / .html を含めるため、pages/ も拾われてしまうのを防ぐ。
+**/**
+!appsscript.json
+!line_bot.js
