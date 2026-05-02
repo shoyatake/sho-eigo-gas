@@ -1,0 +1,92 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'line_bot.js'
+      - 'appsscript.json'
+      - 'pages/**'
+      - '.claspignore'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-gas:
+    name: Deploy GAS (clasp push + redeploy Web App)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install clasp
+        run: npm install -g @google/clasp@2.4.2
+
+      - name: Restore clasp credentials
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          CLASP_JSON: ${{ secrets.CLASP_JSON }}
+        run: |
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          printf '%s' "$CLASP_JSON" > .clasp.json
+
+      - name: clasp push
+        run: clasp push -f
+
+      - name: clasp deploy (update Web App)
+        run: |
+          clasp deploy \
+            -i "${{ secrets.GAS_DEPLOYMENT_ID }}" \
+            -d "auto: ${{ github.sha }}"
+
+  deploy-pages:
+    name: Deploy static pages (FTP)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Substitute placeholders
+        env:
+          LINE_ID: ${{ secrets.LINE_ID }}
+          GAS_DEPLOYMENT_ID: ${{ secrets.GAS_DEPLOYMENT_ID }}
+        run: |
+          mkdir -p build
+          cp -r pages/. build/
+          find build -type f \( -name '*.html' -o -name '*.css' \) -print0 \
+            | xargs -0 sed -i \
+                -e "s|@YOUR_LINE_ID|${LINE_ID}|g" \
+                -e "s|YOUR_GAS_DEPLOYMENT_ID|${GAS_DEPLOYMENT_ID}|g"
+
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp
+
+      - name: Upload via FTP (no-delete: 既存ファイルは保持)
+        env:
+          FTP_PASS: ${{ secrets.FTP_PASS }}
+        run: |
+          lftp -u "xs672802,${FTP_PASS}" \
+            -e "set ftp:ssl-allow no; \
+                mirror --reverse --no-delete --only-newer --verbose=2 \
+                       build/ /sho-blog.com/public_html/; \
+                quit" \
+            sv16546.xserver.jp
+
+      - name: Verify endpoints
+        run: |
+          for u in https://sho-blog.com/ \
+                   https://sho-blog.com/products/ \
+                   https://sho-blog.com/lp/ \
+                   https://sho-blog.com/monitor/ \
+                   https://sho-blog.com/monitor/dashboard.html \
+                   https://sho-blog.com/monitor/parent/dashboard.html \
+                   https://sho-blog.com/assets/style.css ; do
+            printf "%s -> " "$u"
+            curl -sI "$u" | head -1 || true
+          done
