@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1a2d45">
+<title>sho eigo lesson</title>
+<style>
+:root{
+  --navy:#1a2d45; --teal:#2a8f9a; --bg:#f6f7f9; --card:#fff; --ink:#1a2d45;
+  --muted:#6b7785; --line:#e3e7ec; --ok:#2a8f9a; --warn:#c0392b; --gold:#d4a93b;
+  --shadow:0 2px 12px rgba(26,45,69,.08);
+  --radius:12px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+  font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  font-size:16px;line-height:1.6}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+button:disabled{opacity:.45;cursor:not-allowed}
+audio{width:100%}
+#lesson-header{position:sticky;top:0;background:var(--navy);color:#fff;padding:10px 14px;z-index:10}
+#lesson-header .meta{font-size:12px;opacity:.8}
+#lesson-header h1{margin:2px 0 0;font-size:16px;font-weight:600}
+#step-progress{display:flex;gap:6px;justify-content:center;padding:10px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:54px;z-index:9}
+#step-progress .dot{width:10px;height:10px;border-radius:50%;background:var(--line)}
+#step-progress .dot.active{background:var(--teal)}
+#step-progress .dot.done{background:var(--navy)}
+main{padding:16px;padding-bottom:120px;max-width:720px;margin:0 auto}
+.step{background:var(--card);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);margin-bottom:16px}
+.step[hidden]{display:none}
+.step-title{font-size:18px;font-weight:600;margin:0 0 8px;color:var(--navy)}
+.step-sub{font-size:13px;color:var(--muted);margin:0 0 14px}
+.step-body{margin-bottom:14px}
+.step-gate{display:flex;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--muted);background:#f0f3f6;padding:8px 12px;border-radius:8px;margin-bottom:10px}
+.step-gate .met{color:var(--ok);font-weight:600}
+.next-btn{display:block;width:100%;padding:14px;background:var(--teal);color:#fff;border-radius:var(--radius);font-weight:600;font-size:16px}
+.next-btn:disabled{background:var(--muted)}
+.passage{background:#fafbfc;border:1px solid var(--line);border-radius:8px;padding:12px;margin:10px 0;line-height:1.9}
+.passage.hidden{filter:blur(6px);transition:filter .2s}
+.passage.hidden:hover{filter:none}
+.btn-pri{background:var(--teal);color:#fff;padding:12px 18px;border-radius:8px;font-weight:600}
+.btn-sec{background:#fff;color:var(--navy);border:1px solid var(--navy);padding:10px 16px;border-radius:8px;font-weight:600}
+.btn-rec{background:var(--warn);color:#fff;padding:14px;border-radius:50%;width:64px;height:64px;font-size:14px;font-weight:600}
+.btn-rec.recording{background:#1a2d45;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.sentence-list{list-style:none;padding:0;margin:0}
+.sentence-list li{padding:12px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px;background:#fafbfc;cursor:pointer}
+.sentence-list li.played{background:#eaf6f7;border-color:var(--teal)}
+.sentence-list .ja{font-size:13px;color:var(--muted);margin-top:6px;display:none}
+.sentence-list li.show-ja .ja{display:block}
+.sentence-list .ja-toggle{font-size:12px;color:var(--teal);margin-top:4px;display:inline-block}
+.fullscreen-step{position:fixed;inset:0;background:#fff;z-index:20;overflow:auto;padding:16px}
+.ab-compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+.ab-compare > div{background:#fafbfc;padding:10px;border-radius:8px;border:1px solid var(--line)}
+.ab-compare h4{margin:0 0 6px;font-size:13px;color:var(--muted)}
+.rating{display:flex;gap:6px;margin:10px 0}
+.rating button{padding:8px 14px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.rating button.selected{background:var(--gold);color:#fff;border-color:var(--gold)}
+.flashcard{background:#fafbfc;border:1px solid var(--line);border-radius:var(--radius);padding:24px;text-align:center;margin:12px 0}
+.flashcard .word{font-size:32px;font-weight:700;margin:0 0 6px}
+.flashcard .meaning{font-size:15px;color:var(--muted);margin:8px 0;min-height:24px}
+.flashcard .meaning.hidden{visibility:hidden}
+.flashcard-actions{display:flex;gap:10px;justify-content:center;margin-top:14px}
+#qa-fab{position:fixed;right:16px;bottom:16px;width:56px;height:56px;border-radius:50%;background:var(--navy);color:#fff;font-size:22px;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,.25);z-index:30}
+.modal{position:fixed;inset:0;background:rgba(20,30,45,.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+.modal[hidden]{display:none}
+.modal-box{background:#fff;border-radius:var(--radius);max-width:480px;width:100%;padding:18px;max-height:90vh;overflow:auto}
+.modal h3{margin:0 0 10px;color:var(--navy)}
+.modal textarea{width:100%;min-height:96px;padding:10px;border:1px solid var(--line);border-radius:8px;font:inherit;resize:vertical}
+.modal .answer{white-space:pre-wrap;background:#fafbfc;padding:10px;border-radius:8px;margin-top:10px;font-size:14px;border:1px solid var(--line);min-height:40px}
+.modal .modal-close{margin-top:12px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:90px;background:#1a2d45;color:#fff;padding:10px 16px;border-radius:24px;font-size:13px;z-index:60;box-shadow:0 4px 16px rgba(0,0,0,.25);opacity:0;transition:opacity .2s}
+.toast.show{opacity:1}
+.banner{background:#fff5dc;border:1px solid var(--gold);padding:10px 14px;border-radius:8px;margin:12px 0;font-size:14px}
+.banner .row{margin-top:8px}
+#lesson-footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);padding:12px 16px;z-index:5;display:none}
+#lesson-footer.visible{display:block}
+#submit-btn{display:block;width:100%;padding:14px;background:var(--gold);color:#fff;border-radius:var(--radius);font-weight:700;font-size:16px}
+#submit-btn:disabled{background:var(--muted)}
+#submit-hint{font-size:12px;color:var(--muted);text-align:center;margin-top:6px}
+.success-screen{text-align:center;padding:40px 16px}
+.success-screen h2{color:var(--ok)}
+@media (min-width:600px){
+  main{padding:24px}
+}
+</style>
+</head>
+<body>
+
+<header id="lesson-header">
+  <div class="meta" id="header-meta"></div>
+  <h1 id="header-title"></h1>
+</header>
+
+<nav id="step-progress" aria-label="進行状況"></nav>
+
+<main id="step-host">
+
+  <section class="step" data-step="0" hidden>
+    <h2 class="step-title">はじめに</h2>
+    <p class="step-sub">今日のレッスンの導入を聞いてください。</p>
+    <div class="step-body">
+      <audio id="audio-intro" preload="auto" controls></audio>
+    </div>
+    <div class="step-gate">
+      <span data-gate="dwell">⏱ 残り <span class="dwell-sec">20</span> 秒</span>
+      <span data-gate="plays">🔊 <span class="plays-count">0</span> / <span class="plays-need">1</span> 回</span>
+    </div>
+    <button class="next-btn" disabled>次へ</button>
+  </section>
+
+  <section class="step" data-step="1" hidden>
+    <h2 class="step-title">ビフォー録音</h2>
+    <p class="step-sub">何も見ずに、今の実力で本文を読み上げて録音してください。</p>
+    <div class="step-body">
+      <div class="passage" id="passage-1"></div>
+      <div class="row">
+        <button class="btn-rec" data-rec="before">録音<br>開始</button>
+        <span class="rec-status" data-rec-status="before"></span>
+      </div>
+      <audio class="rec-playback" data-rec-playback="before" controls hidden></audio>
+    </div>
+    <div class="step-gate">
+      <span data-gate="dwell">⏱ 残り <span class="dwell-sec">20</span> 秒</span>
+      <span data-gate="plays">🎤 <span class="plays-count">0</span> / <span class="plays-need">1</span> 録音</span>
+    </div>
+    <button class="next-btn" disabled>次へ</button>
+  </section>
+
+  <section class="step" data-step="2" hidden>
+    <h2 class="step-title">精読</h2>
+    <p class="step-sub">一文ずつタップして音と意味を結びつけましょう。</p>
+    <div class="step-body">
+      <ul class="sentence-list" id="sentence-list"></ul>
+    </div>
+    <div class="step-gate">
+      <span data-gate="dwell">⏱ 残り <span class="dwell-sec">20</span> 秒</span>
+      <span data-gate="plays">📖 <span class="plays-count">0</span> / <span class="plays-need">0</span> 文</span>
+    </div>
+    <button class="next-btn" disabled>次へ</button>
+  </section>
+
+  <section class="step" data-step="3" hidden>
+    <h2 class="step-title">リスニング ×3</h2>
+    <p class="step-sub">テキストを見ずに、3 回続けて聴いてください。</p>
+    <div class="step-body">
+      <button class="btn-pri" data-play-full="3">▶ 再生 (<span class="plays-count">0</span>/3)</button>
+    </div>
+    <div class="step-gate">
+      <span data-gate="dwell">⏱ 残り <span class="dwell-sec">20</span> 秒</span>
+      <span data-gate="plays">🔊 <span class="plays-count">0</span> / <span class="plays-need">3</span> 回</span>
+    </div>
+    <button class="next-btn" disabled>次へ</button>
+  </section>
+
+  <section class="step" data-step="4" hidden>
+    <h2 class="step-title">シャドーイング (テキスト有) ×3</h2>
+    <p class="step-sub">テキストを見ながら、声に出して追いかけましょう。</p>
+    <div class="step-body">
+      <div class="passage" id="passage-4"></div>
+      <button class="btn-pri" data-play-full="3">▶ 再生 (<span class="plays-count">0</span>/3)</button>
+    </div>
+    <div class="step-gate">
+      <span data-gate="dwell">⏱ 残り <span class="dwell-sec">20</span> 秒</span>
+      <span data-gate="plays">🔊 <span class="plays-count">0</span> / <span class="plays-need">3</span> 回</span>
+    </div>
+    <button class="next-btn" disabled>次へ</button>
+  </section>
+
+  <section class="step" data-step="5" hidden>
+    <h2 class="step-title">シャドーイング (テキスト無) ×3</h2>
+    <p class="step-sub">テキストは隠して、音だけで追いかけます。</p>
+    <div class="step-body">
+      <div class="passage hidden" id="passage-5"></div>
+      <p class="step-sub" style="font-size:11px">※ 上をタップ長押しで一時的に確認できます</p>
+      <button class="btn-pri" data-play-full="3">▶ 再生 (<span class="plays-count">0</span>/3)</button>
+    </div>
+    <div class="step-gate">
+      <span data-gate="dwell">⏱ 残り <span class="dwell-sec">20</span> 秒</span>
+      <span data-gate="plays">🔊 <span class="plays-count">0</span> / <span class="plays-need">3</span> 回</span>
+    </div>
+    <button class="next-btn" disabled>次へ</button>
+  </section>
+
+  <section class="step" data-step="6" hidden>
+    <h2 class="step-title">オーバーラッピング ×3</h2>
+    <p class="step-sub">音と完全に重ねて声に出しましょう。リズムを意識して。</p>
+    <div class="step-body">
+      <div class="passage" id="passage-6"></div>
+      <button class="btn-pri" data-play-full="3">▶ 再生 (<span class="plays-count">0</span>/3)</button>
+    </div>
+    <div class="step-gate">
+      <span data-gate="dwell">⏱ 残り <span class="dwell-sec">20</span> 秒</span>
+      <span data-gate="plays">🔊 <span class="plays-count">0</span> / <span class="plays-need">3</span> 回</span>
+    </div>
+    <button class="next-btn" disabled>次へ</button>
+  </section>
+
+  <section class="step" data-step="7" hidden>
+    <h2 class="step-title">音読</h2>
+    <p class="step-sub">ここまでの練習を活かして、声に出して読みましょう。</p>
+    <div class="step-body">
+      <div class="passage" id="passage-7"></div>
+      <div class="row">
+        <button class="btn-rec" data-rec="reading">録音<br>開始</button>
+        <span class="rec-status" data-rec-status="reading"></span>
+      </div>
+      <audio class="rec-playback" data-rec-playback="reading" controls hidden></audio>
+    </div>
+    <div class="step-gate">
+      <span data-gate="dwell">⏱ 残り <span class="dwell-sec">20</span> 秒</span>
+      <span data-gate="plays">🎤 <span class="plays-count">0</span> / <span class="plays-need">1</span> 録音</span>
+    </div>
+    <button class="next-btn" disabled>次へ</button>
+  </section>
+
+  <section class="step" data-step="8" hidden>
+    <h2 class="step-title">アフター録音 + 評価</h2>
+    <p class="step-sub">最後にもう一度録音し、ビフォーと聴き比べます。</p>
+    <div class="step-body">
+      <div class="passage" id="passage-8"></div>
+      <div class="row">
+        <button class="btn-rec" data-rec="after">録音<br>開始</button>
+        <span class="rec-status" data-rec-status="after"></span>
+      </div>
+      <div class="ab-compare" id="ab-compare" hidden>
+        <div><h4>ビフォー</h4><audio data-rec-playback="before" controls></audio></div>
+        <div><h4>アフター</h4><audio data-rec-playback="after" controls></audio></div>
+      </div>
+      <div id="rating-block" hidden>
+        <p class="step-sub" style="margin-top:14px">自己評価 (1〜5)</p>
+        <div class="rating" id="rating"></div>
+      </div>
+    </div>
+    <div class="step-gate">
+      <span data-gate="dwell">⏱ 残り <span class="dwell-sec">20</span> 秒</span>
+      <span data-gate="plays">🎤 録音<span class="rec-met"></span> / 評価<span class="rate-met"></span></span>
+    </div>
+    <button class="next-btn" disabled>次へ</button>
+  </section>
+
+  <section class="step" data-step="9" hidden>
+    <h2 class="step-title">単語フラッシュカード</h2>
+    <p class="step-sub">今日の単語を確認しましょう。即答できれば「覚えた」。</p>
+    <div class="step-body" id="flashcard-host"></div>
+    <div class="step-gate">
+      <span data-gate="dwell">⏱ 残り <span class="dwell-sec">20</span> 秒</span>
+      <span data-gate="plays">🃏 <span class="plays-count">0</span> / <span class="plays-need">0</span> 枚</span>
+    </div>
+  </section>
+
+</main>
+
+<footer id="lesson-footer">
+  <button id="submit-btn" disabled>sho 先生に提出する</button>
+  <p id="submit-hint"></p>
+</footer>
+
+<div id="sho-modal" class="modal" hidden>
+  <div class="modal-box">
+    <h3>sho 先生からのひとこと</h3>
+    <p id="sho-text"></p>
+    <audio id="sho-audio" preload="auto"></audio>
+    <button class="btn-sec modal-close" id="sho-close" disabled>閉じる</button>
+  </div>
+</div>
+
+<div id="qa-modal" class="modal" hidden>
+  <div class="modal-box">
+    <h3>質問する</h3>
+    <textarea id="qa-input" maxlength="500" placeholder="このレッスンについて質問してください"></textarea>
+    <div class="row" style="margin-top:10px">
+      <button class="btn-pri" id="qa-send">送信</button>
+      <button class="btn-sec" id="qa-close">閉じる</button>
+    </div>
+    <div class="answer" id="qa-answer" hidden></div>
+  </div>
+</div>
+
+<button id="qa-fab" aria-label="質問する">？</button>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const DATA = /* __DATA_JSON__ */;
+// LOCAL DEV ONLY: replace the placeholder above with `null` and assign a fixture object to DEV_DATA below.
+const DEV_DATA = null;
+
+(() => {
+'use strict';
+
+const LESSON = (DATA && typeof DATA === 'object' && DATA.lesson_id) ? DATA : DEV_DATA;
+if (!LESSON) {
+  document.body.innerHTML = '<p style="padding:24px">レッスンデータが読み込まれていません。</p>';
+  return;
+}
+
+const JP_VOICE_ID = '9tnqrcdSuRMggTdDrs9C';
+const EN_VOICE_ID = LESSON.en_voice_id;
+console.assert(JP_VOICE_ID !== EN_VOICE_ID, 'JP/EN voice id collision — check manifest.json');
+
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbw0P2FhuWPVwjXGeZL_7Kzcxi6cSXSeUmtpYltWSE2w3ba6tP55-nN2HjsY-HR9TMsp/exec';
+const LS_KEY = 'shoeigo_lesson_state_v1';
+const DEVICE_UID_KEY = 'shoeigo_device_uid';
+const DWELL_SEC = 20;
+
+const STEP_INTRO_TEXTS = {
+  0: 'ようこそ。今日のレッスンを始めましょう。まず音声を最後まで聴いてください。',
+  1: 'まずは何も見ずに、今の実力で読んで録音してみてください。',
+  2: '一文ずつタップして、意味と音を結びつけましょう。',
+  3: 'テキストを見ずに、3 回続けて聴いてください。',
+  4: 'テキストを見ながら、声に出して追いかけましょう。',
+  5: '今度はテキストを隠して、音だけで追いかけます。',
+  6: '音と完全に重ねて読みます。リズムを意識して。',
+  7: 'ここまでの練習を活かして、声に出して読みましょう。',
+  8: '最後にもう一度録音し、ビフォーと聴き比べます。',
+  9: '今日の単語を確認しましょう。即答できればOKです。',
+};
+
+const STEP_GATES = {
+  0: {plays:1}, 1:{plays:1}, 2:{plays:LESSON.sentences.length},
+  3:{plays:3}, 4:{plays:3}, 5:{plays:3}, 6:{plays:3},
+  7:{plays:1}, 8:{plays:1}, 9:{plays:LESSON.vocab.length},
+};
+
+const state = loadState() || {
+  lessonId: LESSON.lesson_id,
+  currentStep: 0,
+  startedAt: Date.now(),
+  steps: {},
+  recordings: {before:null, reading:null, after:null},
+  vocabGrades: [],
+  durations: {perStep:{}, totalMs:0},
+  pendingVocabGrades: [],
+  selfRating: null,
+  sentencesPlayed: [],
+  flashcardIndex: 0,
+};
+for (let n=0;n<10;n++){
+  if (!state.steps[n]) state.steps[n] = {dwellMet:false, playsCount:0, playsMet:false, completed:false};
+}
+
+let dwellTimer = null;
+let stepEnterAt = 0;
+
+function $(sel, root){return (root||document).querySelector(sel)}
+function $$(sel, root){return Array.from((root||document).querySelectorAll(sel))}
+
+function persist(){
+  try{
+    const all = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+    const slim = {...state};
+    all[state.lessonId] = slim;
+    localStorage.setItem(LS_KEY, JSON.stringify(all));
+  }catch(e){console.warn('persist failed', e)}
+}
+function loadState(){
+  try{
+    const all = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+    return all[LESSON.lesson_id] || null;
+  }catch(e){return null}
+}
+function clearState(){
+  try{
+    const all = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+    delete all[LESSON.lesson_id];
+    localStorage.setItem(LS_KEY, JSON.stringify(all));
+  }catch(e){}
+}
+function getDeviceUid(){
+  let u = localStorage.getItem(DEVICE_UID_KEY);
+  if (!u){ u = 'd_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem(DEVICE_UID_KEY, u); }
+  return u;
+}
+function getUserId(){
+  const url = new URL(location.href);
+  return url.searchParams.get('uid') || getDeviceUid();
+}
+
+function toast(msg, ms){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove('show'), ms||2400);
+}
+
+async function gasPost(action, body){
+  try{
+    const res = await fetch(GAS_URL + '?action=' + encodeURIComponent(action), {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({...body, lesson_id: LESSON.lesson_id}),
+      signal: AbortSignal.timeout(action==='tts' ? 30000 : 15000),
+    });
+    const text = await res.text();
+    try{ return JSON.parse(text); }
+    catch(_){ return {ok:false, raw:text}; }
+  }catch(e){
+    return {ok:false, error:String(e)};
+  }
+}
+
+// === audio voice safety helper ===
+// Single playback path. Asserts JP/EN separation so JP voice can never play English.
+function playAudio({url, kind, voice_id}){
+  return new Promise((resolve, reject) => {
+    if (!url){ reject(new Error('no url')); return; }
+    if (kind && kind.startsWith('jp_') && voice_id && voice_id !== JP_VOICE_ID){
+      reject(new Error('JP kind requires JP_VOICE_ID')); return;
+    }
+    if (kind && kind.startsWith('en_') && voice_id === JP_VOICE_ID){
+      reject(new Error('EN kind must not use JP_VOICE_ID')); return;
+    }
+    if (kind && kind.startsWith('en_') && url === LESSON.audio_intro_jp){
+      reject(new Error('EN kind URL collides with audio_intro_jp')); return;
+    }
+    if (kind && kind.startsWith('jp_') && (url === LESSON.audio_full_en)){
+      reject(new Error('JP kind URL collides with audio_full_en')); return;
+    }
+    const a = new Audio(url);
+    a.addEventListener('ended', ()=>resolve({ok:true}));
+    a.addEventListener('error', ()=>reject(new Error('audio load failed')));
+    a.play().catch(reject);
+    // No speechSynthesis fallback — by design.
+  });
+}
+
+// === sho-sensei modal ===
+const shoModalCache = {};
+async function openShoModal(stepNum){
+  return new Promise(async (resolveOpen) => {
+    const modal = $('#sho-modal');
+    const text = $('#sho-text');
+    const audio = $('#sho-audio');
+    const closeBtn = $('#sho-close');
+    text.textContent = STEP_INTRO_TEXTS[stepNum] || '';
+    closeBtn.disabled = true;
+    audio.removeAttribute('src');
+    modal.hidden = false;
+
+    let url = shoModalCache[stepNum];
+    if (!url){
+      const r = await gasPost('tts', {voice_id: JP_VOICE_ID, text: STEP_INTRO_TEXTS[stepNum], step_id: stepNum});
+      if (r.ok && r.audio_url){ url = r.audio_url; shoModalCache[stepNum] = url; }
+    }
+
+    const finish = () => { closeBtn.disabled = false; };
+    if (url){
+      audio.src = url;
+      audio.addEventListener('ended', finish, {once:true});
+      audio.addEventListener('error', () => { setTimeout(finish, 2000); toast('音声を読み込めませんでした'); }, {once:true});
+      // Voice safety check before play
+      if (url === LESSON.audio_full_en){ toast('音声URLが不正です'); finish(); }
+      else { audio.play().catch(()=>{ setTimeout(finish, 2000); }); }
+    } else {
+      setTimeout(finish, 2000);
+      toast('解説音声を読み込めませんでした');
+    }
+
+    closeBtn.onclick = () => {
+      try{ audio.pause(); }catch(_){}
+      modal.hidden = true;
+      resolveOpen();
+    };
+  });
+}
+
+// === gate logic ===
+function evaluateGate(n){
+  const s = state.steps[n];
+  const enabled = s.dwellMet && s.playsMet;
+  const sec = $(`section[data-step="${n}"]`);
+  if (sec){
+    const btn = sec.querySelector('.next-btn');
+    if (btn) btn.disabled = !enabled;
+  }
+  persist();
+}
+function startDwell(n){
+  const sec = $(`section[data-step="${n}"]`);
+  const span = sec && sec.querySelector('.dwell-sec');
+  let remain = DWELL_SEC;
+  if (state.steps[n].dwellMet){ if (span) span.textContent = '0'; return; }
+  if (span) span.textContent = remain;
+  clearInterval(dwellTimer);
+  dwellTimer = setInterval(()=>{
+    remain--;
+    if (span) span.textContent = Math.max(0, remain);
+    if (remain <= 0){
+      clearInterval(dwellTimer);
+      state.steps[n].dwellMet = true;
+      evaluateGate(n);
+    }
+  }, 1000);
+}
+function recordPlay(n, opts){
+  const s = state.steps[n];
+  s.playsCount = (s.playsCount || 0) + 1;
+  const need = STEP_GATES[n].plays;
+  const sec = $(`section[data-step="${n}"]`);
+  if (sec){
+    sec.querySelectorAll('.plays-count').forEach(el => el.textContent = s.playsCount);
+    sec.querySelectorAll('.plays-need').forEach(el => el.textContent = need);
+    const span = sec.querySelector('[data-gate="plays"]');
+    if (span && s.playsCount >= need) span.classList.add('met');
+  }
+  if (s.playsCount >= need) s.playsMet = true;
+  evaluateGate(n);
+}
+
+// === navigation ===
+function renderProgress(){
+  const nav = $('#step-progress');
+  nav.innerHTML = '';
+  for (let n=0;n<10;n++){
+    const dot = document.createElement('span');
+    dot.className = 'dot' + (n===state.currentStep?' active':'') + (state.steps[n].completed?' done':'');
+    nav.appendChild(dot);
+  }
+  // Submit button visibility: from step 8 onward
+  const fb = $('#lesson-footer');
+  fb.classList.toggle('visible', state.currentStep >= 8);
+}
+function enterStep(n){
+  // tally durations from previous step
+  if (stepEnterAt && state.currentStep !== n){
+    const prev = state.currentStep;
+    state.durations.perStep[prev] = (state.durations.perStep[prev] || 0) + (Date.now() - stepEnterAt);
+  }
+  state.currentStep = n;
+  stepEnterAt = Date.now();
+  $$('section.step').forEach(s => s.hidden = true);
+  const sec = $(`section[data-step="${n}"]`);
+  if (!sec) return;
+  sec.hidden = false;
+  // restore plays UI
+  sec.querySelectorAll('.plays-count').forEach(el => el.textContent = state.steps[n].playsCount || 0);
+  sec.querySelectorAll('.plays-need').forEach(el => el.textContent = STEP_GATES[n].plays);
+  renderProgress();
+  evaluateGate(n);
+  // open sho modal first (dwell starts on close)
+  openShoModal(n).then(() => startDwell(n));
+  persist();
+}
+function goNext(){
+  state.steps[state.currentStep].completed = true;
+  if (state.currentStep < 9){
+    enterStep(state.currentStep + 1);
+  } else {
+    // step 9 has no next — submit takes over
+    renderSubmit();
+  }
+}
+
+// === step body wiring ===
+function fillPassages(){
+  const en = LESSON.passage_en || '';
+  ['1','4','5','6','7','8'].forEach(n => {
+    const el = $('#passage-'+n);
+    if (el) el.textContent = en;
+  });
+}
+
+// step 0: intro audio
+function wireStep0(){
+  const a = $('#audio-intro');
+  a.src = LESSON.audio_intro_jp;
+  let counted = false;
+  a.addEventListener('ended', ()=>{
+    if (counted) return; counted = true;
+    recordPlay(0);
+  });
+  a.addEventListener('error', ()=> toast('音声を読み込めませんでした'));
+}
+
+// step 2: sentence list
+function wireStep2(){
+  const ul = $('#sentence-list');
+  ul.innerHTML = '';
+  LESSON.sentences.forEach((s, i) => {
+    const li = document.createElement('li');
+    li.dataset.idx = i;
+    li.innerHTML = `<div class="en"></div>
+      <div class="ja"></div>
+      <span class="ja-toggle">意味を見る</span>`;
+    li.querySelector('.en').textContent = s.en;
+    li.querySelector('.ja').textContent = s.ja;
+    if (state.sentencesPlayed.includes(i)) li.classList.add('played');
+    li.addEventListener('click', async (e) => {
+      if (e.target.classList.contains('ja-toggle')){ li.classList.toggle('show-ja'); return; }
+      try{
+        await playAudio({url: s.audio_url, kind:'en_sentence'});
+      }catch(err){ toast('音声を読み込めませんでした'); return; }
+      if (!state.sentencesPlayed.includes(i)){
+        state.sentencesPlayed.push(i);
+        li.classList.add('played');
+        recordPlay(2);
+      }
+    });
+    ul.appendChild(li);
+  });
+}
+
+// steps 3,4,5,6: full passage audio with N-play gate
+function wireFullPlay(){
+  $$('[data-play-full]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const sec = btn.closest('section.step');
+      const n = parseInt(sec.dataset.step, 10);
+      btn.disabled = true;
+      try{
+        await playAudio({url: LESSON.audio_full_en, kind:'en_full'});
+        recordPlay(n);
+      }catch(_){
+        toast('音声を読み込めませんでした');
+      }
+      btn.disabled = false;
+    });
+  });
+}
+
+// recording (steps 1, 7, 8)
+const recState = {}; // {kind: {recorder, chunks, mime, blobUrl, uploading}}
+function pickMime(){
+  const c = ['audio/webm;codecs=opus','audio/mp4','audio/ogg;codecs=opus'];
+  for (const m of c){ if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m; }
+  return '';
+}
+async function startRec(kind){
+  if (!navigator.mediaDevices || !window.MediaRecorder){ toast('録音機能がこの端末では使えません'); return; }
+  let stream;
+  try{ stream = await navigator.mediaDevices.getUserMedia({audio:true}); }
+  catch(e){ toast('マイクの許可が必要です'); return; }
+  const mime = pickMime();
+  const rec = new MediaRecorder(stream, mime ? {mimeType: mime} : undefined);
+  const chunks = [];
+  rec.addEventListener('dataavailable', e => { if (e.data && e.data.size) chunks.push(e.data); });
+  rec.addEventListener('stop', async () => {
+    const blob = new Blob(chunks, {type: rec.mimeType || 'audio/webm'});
+    const url = URL.createObjectURL(blob);
+    state.recordings[kind] = {blob_url: null, local_url: url, mime: blob.type, size: blob.size};
+    $$('[data-rec-playback="'+kind+'"]').forEach(el => { el.src = url; el.hidden = false; });
+    stream.getTracks().forEach(t => t.stop());
+    persist();
+    // Step gate satisfaction (recording made)
+    const stepNum = (kind==='before')?1:(kind==='reading')?7:8;
+    if (stepNum !== 8) recordPlay(stepNum); else evaluateStep8();
+    // background upload
+    uploadRecording(kind, blob).catch(e => console.warn('upload', e));
+    // Step 8: reveal compare + rating
+    if (kind === 'after'){
+      $('#ab-compare').hidden = false;
+      $('#rating-block').hidden = false;
+    }
+  });
+  rec.start();
+  recState[kind] = {recorder: rec, chunks, mime: rec.mimeType, startedAt: Date.now()};
+  $('[data-rec="'+kind+'"]').classList.add('recording');
+  $('[data-rec="'+kind+'"]').innerHTML = '停止';
+  $('[data-rec-status="'+kind+'"]').textContent = '録音中…';
+}
+function stopRec(kind){
+  const r = recState[kind];
+  if (!r) return;
+  r.recorder.stop();
+  $('[data-rec="'+kind+'"]').classList.remove('recording');
+  $('[data-rec="'+kind+'"]').innerHTML = '録音<br>開始';
+  const dur = Math.round((Date.now() - r.startedAt)/1000);
+  $('[data-rec-status="'+kind+'"]').textContent = `録音完了 (${dur}s)`;
+  delete recState[kind];
+}
+function wireRecBtns(){
+  $$('[data-rec]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const kind = btn.dataset.rec;
+      if (recState[kind]) stopRec(kind); else startRec(kind);
+    });
+  });
+}
+
+// chunked base64 upload to GAS
+async function uploadRecording(kind, blob){
+  const buf = await blob.arrayBuffer();
+  const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+  const CHUNK = 64 * 1024; // 64KB of base64 per chunk
+  const total = Math.ceil(b64.length / CHUNK);
+  for (let seq = 0; seq < total; seq++){
+    const slice = b64.slice(seq*CHUNK, (seq+1)*CHUNK);
+    const r = await gasPost('upload_audio_chunk', {kind, seq, total, b64: slice, mime: blob.type});
+    if (!r.ok){ toast('アップロードに失敗しました'); return; }
+  }
+  const fin = await gasPost('upload_audio_finalize', {kind, mime: blob.type});
+  if (fin.ok && fin.blob_url){
+    state.recordings[kind] = {...(state.recordings[kind]||{}), blob_url: fin.blob_url};
+    persist();
+  } else {
+    toast('アップロード完了に失敗しました');
+  }
+}
+
+// step 8 evaluation: needs after-recording AND rating
+function evaluateStep8(){
+  const hasAfter = !!(state.recordings.after);
+  const hasRating = state.selfRating != null;
+  const sec = $('section[data-step="8"]');
+  sec.querySelector('.rec-met').textContent = hasAfter ? ' ✓' : ' …';
+  sec.querySelector('.rate-met').textContent = hasRating ? ' ✓' : ' …';
+  state.steps[8].playsCount = (hasAfter && hasRating) ? 1 : 0;
+  state.steps[8].playsMet = hasAfter && hasRating;
+  evaluateGate(8);
+}
+function wireRating(){
+  const r = $('#rating');
+  r.innerHTML = '';
+  for (let i=1;i<=5;i++){
+    const b = document.createElement('button');
+    b.textContent = i;
+    b.addEventListener('click', () => {
+      state.selfRating = i;
+      $$('#rating button').forEach(x => x.classList.remove('selected'));
+      b.classList.add('selected');
+      evaluateStep8();
+    });
+    r.appendChild(b);
+  }
+  if (state.selfRating){
+    const btns = $$('#rating button');
+    if (btns[state.selfRating-1]) btns[state.selfRating-1].classList.add('selected');
+  }
+}
+
+// step 9: flashcards
+function wireStep9(){
+  const host = $('#flashcard-host');
+  function render(){
+    host.innerHTML = '';
+    const i = state.flashcardIndex;
+    if (i >= LESSON.vocab.length){
+      host.innerHTML = '<p style="text-align:center;color:var(--ok);font-weight:600">全カード完了。提出ボタンを押してください。</p>';
+      return;
+    }
+    const v = LESSON.vocab[i];
+    const card = document.createElement('div');
+    card.className = 'flashcard';
+    card.innerHTML = `
+      <p class="word"></p>
+      <button class="btn-sec play-w">▶ 音声</button>
+      <p class="meaning hidden"></p>
+      <button class="btn-sec reveal">意味を見る</button>
+      <div class="flashcard-actions">
+        <button class="btn-pri grade-ok">覚えた</button>
+        <button class="btn-sec grade-ng">まだ</button>
+      </div>
+    `;
+    card.querySelector('.word').textContent = v.word;
+    card.querySelector('.meaning').textContent = v.meaning;
+    card.querySelector('.play-w').addEventListener('click', async () => {
+      try{ await playAudio({url: v.audio_url, kind:'en_vocab'}); }
+      catch(_){ toast('音声を読み込めませんでした'); }
+    });
+    card.querySelector('.reveal').addEventListener('click', () => {
+      card.querySelector('.meaning').classList.remove('hidden');
+    });
+    card.querySelector('.grade-ok').addEventListener('click', () => grade(v, '覚えた'));
+    card.querySelector('.grade-ng').addEventListener('click', () => grade(v, 'まだ'));
+    host.appendChild(card);
+  }
+  function grade(v, g){
+    state.vocabGrades.push({word: v.word, grade: g, at: Date.now()});
+    state.flashcardIndex++;
+    recordPlay(9);
+    render();
+    queueVocabGrade({word: v.word, grade: g});
+    persist();
+  }
+  render();
+}
+
+// vocab grade retry queue
+function queueVocabGrade(item){
+  state.pendingVocabGrades.push({...item, attempts:0});
+  drainVocabQueue();
+}
+let draining = false;
+async function drainVocabQueue(){
+  if (draining) return; draining = true;
+  while (state.pendingVocabGrades.length){
+    const top = state.pendingVocabGrades[0];
+    const r = await gasPost('vocab_grade', {word: top.word, grade: top.grade});
+    if (r.ok){
+      state.pendingVocabGrades.shift();
+      persist();
+    } else {
+      top.attempts++;
+      if (top.attempts >= 4){
+        toast('オフラインです。後で同期します');
+        persist();
+        break;
+      }
+      await new Promise(res => setTimeout(res, 1000 * Math.pow(2, top.attempts - 1)));
+    }
+  }
+  draining = false;
+}
+
+// === submit ===
+function renderSubmit(){
+  const btn = $('#submit-btn');
+  const hint = $('#submit-hint');
+  const allGraded = state.flashcardIndex >= LESSON.vocab.length;
+  const hasAfter = !!state.recordings.after;
+  const ready = allGraded && hasAfter && state.selfRating != null;
+  btn.disabled = !ready;
+  hint.textContent = ready ? '' : (allGraded ? 'アフター録音と評価を完了してください' : '単語カードを終えてから提出できます');
+}
+async function submit(){
+  if (!confirm('提出してよろしいですか？')) return;
+  const btn = $('#submit-btn');
+  btn.disabled = true;
+  // tally final duration for current step
+  if (stepEnterAt){
+    const cur = state.currentStep;
+    state.durations.perStep[cur] = (state.durations.perStep[cur] || 0) + (Date.now() - stepEnterAt);
+  }
+  state.durations.totalMs = Date.now() - state.startedAt;
+  const payload = {
+    user_id: getUserId(),
+    before_blob_url: state.recordings.before && state.recordings.before.blob_url,
+    after_blob_url:  state.recordings.after  && state.recordings.after.blob_url,
+    reading_blob_url:state.recordings.reading&& state.recordings.reading.blob_url,
+    vocab_grades: state.vocabGrades,
+    durations: state.durations,
+    self_rating: state.selfRating,
+  };
+  const r = await gasPost('submit', payload);
+  if (r.ok){
+    clearState();
+    document.body.innerHTML = '<div class="success-screen"><h2>おつかれさまでした！</h2>'
+      + '<p>提出を受け付けました。</p>'
+      + (r.submission_id ? `<p style="color:var(--muted);font-size:13px">提出ID: ${r.submission_id}</p>` : '')
+      + '</div>';
+  } else {
+    btn.disabled = false;
+    toast('提出に失敗しました。もう一度お試しください');
+  }
+}
+
+// === Q&A ===
+function wireQA(){
+  $('#qa-fab').addEventListener('click', () => { $('#qa-modal').hidden = false; });
+  $('#qa-close').addEventListener('click', () => { $('#qa-modal').hidden = true; });
+  $('#qa-send').addEventListener('click', async () => {
+    const q = $('#qa-input').value.trim();
+    if (!q) return;
+    const send = $('#qa-send'); send.disabled = true;
+    const ans = $('#qa-answer'); ans.hidden = false; ans.textContent = '読み込み中…';
+    const r = await gasPost('qa', {question: q, step_id: state.currentStep});
+    ans.textContent = r.ok ? (r.answer || '(回答が空でした)') : '送信に失敗しました';
+    send.disabled = false;
+  });
+}
+
+// === boot ===
+function renderHeader(){
+  $('#header-meta').textContent = `${LESSON.course_name} / Day ${LESSON.day_number} / ${LESSON.total_days} (${LESSON.level})`;
+  $('#header-title').textContent = LESSON.title;
+  document.title = LESSON.title + ' | sho eigo';
+}
+function maybeResumeBanner(){
+  if (state.currentStep > 0){
+    const banner = document.createElement('div');
+    banner.className = 'banner';
+    banner.innerHTML = `前回の続き (Step ${state.currentStep+1}) から再開しますか？
+      <div class="row">
+        <button class="btn-pri" id="resume-yes">はい</button>
+        <button class="btn-sec" id="resume-no">最初から</button>
+      </div>`;
+    $('main').insertBefore(banner, $('main').firstChild);
+    return new Promise(res => {
+      $('#resume-yes').onclick = () => { banner.remove(); res('resume'); };
+      $('#resume-no').onclick  = () => {
+        banner.remove();
+        clearState();
+        Object.assign(state, {
+          currentStep:0, startedAt:Date.now(), steps:{},
+          recordings:{before:null,reading:null,after:null}, vocabGrades:[],
+          durations:{perStep:{},totalMs:0}, pendingVocabGrades:[],
+          selfRating:null, sentencesPlayed:[], flashcardIndex:0,
+        });
+        for (let n=0;n<10;n++) state.steps[n] = {dwellMet:false, playsCount:0, playsMet:false, completed:false};
+        res('reset');
+      };
+    });
+  }
+  return Promise.resolve('fresh');
+}
+function wireNextButtons(){
+  $$('.next-btn').forEach(b => b.addEventListener('click', goNext));
+}
+
+(async function boot(){
+  renderHeader();
+  fillPassages();
+  wireStep0();
+  wireStep2();
+  wireFullPlay();
+  wireRecBtns();
+  wireRating();
+  wireStep9();
+  wireQA();
+  wireNextButtons();
+  $('#submit-btn').addEventListener('click', submit);
+
+  // observe state for submit eligibility
+  setInterval(renderSubmit, 1000);
+
+  await maybeResumeBanner();
+  enterStep(state.currentStep);
+})();
+
+})();
+</script>
+</body>
+</html>
