@@ -9,6 +9,11 @@ const CONFIG = {
   GAS_URL: 'YOUR_GAS_DEPLOY_URL',
 };
 
+const MONITOR_CONFIG = {
+  CAPACITY: 10,
+  PERIOD_DAYS: 14,
+};
+
 const LINE_API = 'https://api.line.me/v2/bot/message';
 
 function doPost(e) {
@@ -59,6 +64,35 @@ function handleFollow(event) {
 function handleMessage(event) {
   const userId = event.source.userId;
   const text   = (event.message && event.message.text) || '';
+
+  if (hasTag(userId, 'mon_feedback_pending')) {
+    const isTestimonial = hasTag(userId, 'mon_testimonial_pending');
+    saveFeedback(userId, isTestimonial ? 'testimonial' : 'free', text);
+    removeTag(userId, 'mon_feedback_pending');
+    if (isTestimonial) {
+      removeTag(userId, 'mon_testimonial_pending');
+      addTag(userId, 'mon_testimonial_done');
+      completeMonitor(userId);
+      replyMessage(event.replyToken, '口コミありがとうございます！\n\n次回サブスクを半額（3ヶ月）で\nご利用いただけます。\n詳細は別途ご案内します。');
+    } else {
+      replyMessage(event.replyToken, 'フィードバックありがとうございます。\nしっかり読ませていただきます。');
+    }
+    return;
+  }
+
+  if (text.indexOf('モニター') !== -1) {
+    handleMonitorInquiry(event);
+    return;
+  }
+
+  if (text.indexOf('フィードバック') !== -1 || text.indexOf('感想') !== -1) {
+    if (hasTag(userId, 'mon_active') || hasTag(userId, 'mon_completed')) {
+      addTag(userId, 'mon_feedback_pending');
+      replyMessage(event.replyToken, '次のメッセージをフィードバックとして記録します。\n何でも自由に書いてください。');
+      return;
+    }
+  }
+
   const keywords = {
     '体験':  '▼ 2日間無料体験はこちら\nhttps://sho-blog.com/all/trial/trial_day1.html',
     'day1':  '▼ 体験Day 1\nhttps://sho-blog.com/all/trial/trial_day1.html',
@@ -77,6 +111,40 @@ function handleMessage(event) {
 function handlePostback(event) {
   const userId = event.source.userId;
   const data   = event.postback.data || '';
+
+  if (data === 'monitor_join') {
+    if (joinMonitor(userId)) {
+      replyMessage(event.replyToken, 'モニター登録が完了しました。\nこれから14日間、よろしくお願いします。\n\n1講座プレゼントの受け取り方法は\n後ほど個別にご案内します。');
+    } else {
+      replyMessage(event.replyToken, 'モニター枠が満席か、すでに参加済みです。');
+    }
+    return;
+  }
+
+  if (data.indexOf('mon_mid_') === 0) {
+    saveFeedback(userId, 'mid', data.replace('mon_mid_', ''));
+    addTag(userId, 'mon_mid_done');
+    replyMessage(event.replyToken, 'ありがとうございます。\n引き続きよろしくお願いします。');
+    return;
+  }
+
+  if (data === 'mon_final_yes') {
+    saveFeedback(userId, 'final', 'agree_testimonial');
+    addTag(userId, 'mon_final_done');
+    addTag(userId, 'mon_testimonial_pending');
+    addTag(userId, 'mon_feedback_pending');
+    replyMessage(event.replyToken, 'ありがとうございます！\n口コミは次のメッセージに書いていただけますか。\n（このまま自由に書いてOKです）');
+    return;
+  }
+
+  if (data === 'mon_final_no') {
+    saveFeedback(userId, 'final', 'pass_testimonial');
+    addTag(userId, 'mon_final_done');
+    completeMonitor(userId);
+    replyMessage(event.replyToken, 'モニター期間、本当にお疲れ様でした。\nありがとうございました。');
+    return;
+  }
+
   const surveyMap = {
     'survey_parent':  { tag: 'attr_parent',  scenario: 'SC-PARENT',  reply: 'ありがとうございます！お子さんの英語に役立つ情報をお届けします 📚' },
     'survey_student': { tag: 'attr_student', scenario: 'SC-STUDENT', reply: 'ありがとうございます！英検対策に役立つ情報をお届けします 🎓' },
@@ -132,8 +200,10 @@ function checkAndSendScheduled() {
       sendPushMessage(userId, msg);
       updateUserStep(userId, scenarioId, stepNum + 1, now);
     }
-    if (step.sendSurvey) { Utilities.sleep(500); sendSurveyButtons(userId); }
-    if (step.sendQuiz)   { Utilities.sleep(500); sendQuizButtons(userId); }
+    if (step.sendSurvey)            { Utilities.sleep(500); sendSurveyButtons(userId); }
+    if (step.sendQuiz)              { Utilities.sleep(500); sendQuizButtons(userId); }
+    if (step.sendMonitorMidSurvey)  { Utilities.sleep(500); sendMonitorMidSurvey(userId); }
+    if (step.sendMonitorFinalSurvey){ Utilities.sleep(500); sendMonitorFinalSurvey(userId); }
     Utilities.sleep(200);
   }
   checkEngagement();
@@ -156,6 +226,7 @@ function checkEngagement() {
     const userId = users[i][0];
     if (!userId) continue;
     if (hasTag(userId, 'purchased') || hasTag(userId, 'dormant') || hasTag(userId, 'deleted')) continue;
+    if (hasTag(userId, 'mon_active') || hasTag(userId, 'mon_completed')) continue;
     const registeredAt = users[i][5] ? new Date(users[i][5]) : null;
     if (!registeredAt) continue;
     const daysSince = (now - registeredAt) / (1000 * 60 * 60 * 24);
@@ -187,6 +258,7 @@ function checkDeletionEligibility() {
     if (!userId) continue;
     if (!dormantSince[userId]) continue;
     if (hasTag(userId, 'purchased') || hasTag(userId, 'deleted') || hasTag(userId, 'reactivated')) continue;
+    if (hasTag(userId, 'mon_active')) continue;
     if (users[j][2] === 'SC-DELETE-NOTICE') continue;
     const daysDormant = (now - dormantSince[userId]) / (1000 * 60 * 60 * 24);
     if (daysDormant >= 30 && !hasAnyReadTag(userId)) {
@@ -252,6 +324,18 @@ const SCENARIOS_DATA = {
       message: '突然ですが、クイズです。\n\n「better」の本物の発音はどちら？' },
     { stepNum: 1, delayDays: 7, sendHour: 8, trackingTag: 'read_dormant',
       message: 'お久しぶりです。\n\n気が向いたときに戻ってきてください。\n\n▼ いつでも体験できます\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+  ],
+  'SC-MONITOR': [
+    { stepNum: 0, delayDays: 0, sendHour: 0, trackingTag: 'read_m0',
+      message: 'モニターに参加してくれてありがとうございます。\n翔也です。\n\n10名限定の枠に\n入っていただきました。\n\n■ お渡しするもの\n・1講座 無料プレゼント（参加者全員）\n・口コミを投稿してくれた方には\n　次回サブスク 半額（3ヶ月間）\n\n■ お願いしたいこと\n・14日間、Day 1とDay 2を実際に体験してください\n・5日目と最終日に簡単なアンケートに答えてください\n・気づいたことがあれば「フィードバック」と送ってください\n\nまずは Day 1 から始めましょう。\n\n▼ Day 1 はこちら\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+    { stepNum: 1, delayDays: 1, sendHour: 8, trackingTag: 'read_m1',
+      message: 'おはようございます、翔也です。\n\n昨日のDay 1、いかがでしたか。\n\n今日からDay 2 に進めます。\n音の変化が少しずつ\n見えてくる頃です。\n\n▼ Day 2 はこちら\nhttps://sho-blog.com/all/trial/trial_day2.html' },
+    { stepNum: 2, delayDays: 4, sendHour: 8, trackingTag: 'read_m2', sendMonitorMidSurvey: true,
+      message: 'モニター開始から5日目です。\n\nここまでの感触を\n簡単に教えてください。\n\n下のボタンから1タップでお答えいただけます。\n\n細かい感想は「フィードバック」と\n送っていただければ\n次のメッセージを記録します。' },
+    { stepNum: 3, delayDays: 5, sendHour: 8, trackingTag: 'read_m3',
+      message: 'モニター10日目です。\n\nここまでで気づいたこと、\n変化したこと、\n逆に分かりにくかったことなど\n何でも教えてください。\n\n「フィードバック」と送っていただくと\n次のメッセージを記録に残します。\n\n残り4日、引き続きよろしくお願いします。' },
+    { stepNum: 4, delayDays: 4, sendHour: 8, trackingTag: 'read_m4', sendMonitorFinalSurvey: true,
+      message: 'モニター期間最終日です。\n14日間、本当にありがとうございました。\n\nこの体験の感想を\n短くで構いませんので\n口コミとしていただけませんか。\n\nいただいた方には\n次回サブスクを 半額（3ヶ月）で\nご利用いただけます。\n\n下のボタンからお答えください。' },
   ],
   'SC-DELETE-NOTICE': [
     { stepNum: 0, delayDays: 0, sendHour: 9, trackingTag: 'read_del1', skipIfTag: 'reactivated',
@@ -432,8 +516,10 @@ function sendStepNow(userId, scenarioId, stepNum) {
   sendPushMessage(userId, msg);
   updateUserStep(userId, scenarioId, stepNum + 1, new Date());
   var step = getScenarioStep(scenarioId, stepNum);
-  if (step && step.sendSurvey) { Utilities.sleep(500); sendSurveyButtons(userId); }
-  if (step && step.sendQuiz)   { Utilities.sleep(500); sendQuizButtons(userId); }
+  if (step && step.sendSurvey)             { Utilities.sleep(500); sendSurveyButtons(userId); }
+  if (step && step.sendQuiz)               { Utilities.sleep(500); sendQuizButtons(userId); }
+  if (step && step.sendMonitorMidSurvey)   { Utilities.sleep(500); sendMonitorMidSurvey(userId); }
+  if (step && step.sendMonitorFinalSurvey) { Utilities.sleep(500); sendMonitorFinalSurvey(userId); }
   Logger.log('送信完了: ' + scenarioId + ' step ' + stepNum + ' → ' + userId);
 }
 
@@ -451,10 +537,12 @@ function monitorAdvanceNextStep(userId) {
 function setupSheets() {
   var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   var sheets = {
-    'USERS':      ['userId','displayName','scenarioId','stepNumber','stepSentAt','registeredAt'],
-    'TAGS':       ['userId','tag','addedAt'],
-    'CLICK_LOG':  ['userId','tag','url','clickedAt'],
-    'SURVEY_LOG': ['userId','answer','scenarioMoved','answeredAt'],
+    'USERS':        ['userId','displayName','scenarioId','stepNumber','stepSentAt','registeredAt'],
+    'TAGS':         ['userId','tag','addedAt'],
+    'CLICK_LOG':    ['userId','tag','url','clickedAt'],
+    'SURVEY_LOG':   ['userId','answer','scenarioMoved','answeredAt'],
+    'MONITORS':     ['userId','displayName','joinedAt','expectedEndAt','status','completedAt'],
+    'FEEDBACK_LOG': ['userId','type','content','receivedAt'],
   };
   for (var name in sheets) {
     var sheet = ss.getSheetByName(name) || ss.insertSheet(name);
@@ -472,4 +560,183 @@ function setupTrigger() {
   });
   ScriptApp.newTrigger('checkAndSendScheduled').timeBased().everyHours(1).create();
   Logger.log('トリガー設定完了');
+}
+
+// ============================================================
+// モニター機能（10名限定 / 14日間 / 1講座プレゼント / 口コミでサブスク半額3ヶ月）
+// ============================================================
+
+function getActiveMonitorCount() {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var sheet = ss.getSheetByName('MONITORS');
+  if (!sheet) return 0;
+  var data = sheet.getDataRange().getValues();
+  var count = 0;
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][4] === 'active') count++;
+  }
+  return count;
+}
+
+function isMonitorRecruitmentOpen() {
+  return getActiveMonitorCount() < MONITOR_CONFIG.CAPACITY;
+}
+
+function handleMonitorInquiry(event) {
+  var userId = event.source.userId;
+  if (hasTag(userId, 'mon_active')) {
+    replyMessage(event.replyToken, 'すでにモニターとしてご参加いただいています。\nありがとうございます。');
+    return;
+  }
+  if (hasTag(userId, 'mon_completed') || hasTag(userId, 'mon_dropout')) {
+    replyMessage(event.replyToken, 'モニター参加履歴があります。\n今後の取り組みもよろしくお願いします。');
+    return;
+  }
+  if (!isMonitorRecruitmentOpen()) {
+    replyMessage(event.replyToken, 'モニター枠（10名）は現在満席です。\n次回募集の際にあらためてご案内します。');
+    return;
+  }
+  sendMonitorJoinButton(event.replyToken);
+}
+
+function joinMonitor(userId) {
+  if (!userId) return false;
+  if (!isMonitorRecruitmentOpen()) return false;
+  if (hasTag(userId, 'mon_active') || hasTag(userId, 'mon_completed')) return false;
+
+  var profile = getLineProfile(userId);
+  var displayName = profile ? profile.displayName : '';
+  var now = new Date();
+  var expectedEnd = new Date(now.getTime() + MONITOR_CONFIG.PERIOD_DAYS * 86400000);
+
+  recordMonitor(userId, displayName, now, expectedEnd);
+  addTag(userId, 'mon_active');
+  registerUser(userId, displayName, 'SC-MONITOR', 0, now);
+  sendStepNow(userId, 'SC-MONITOR', 0);
+  return true;
+}
+
+function recordMonitor(userId, displayName, joinedAt, expectedEndAt) {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var sheet = ss.getSheetByName('MONITORS') || ss.insertSheet('MONITORS');
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['userId','displayName','joinedAt','expectedEndAt','status','completedAt']);
+    sheet.getRange(1,1,1,6).setBackground('#1a2d45').setFontColor('#fff').setFontWeight('bold');
+  }
+  sheet.appendRow([userId, displayName, joinedAt, expectedEndAt, 'active', '']);
+}
+
+function completeMonitor(userId) {
+  if (!userId) return;
+  removeTag(userId, 'mon_active');
+  addTag(userId, 'mon_completed');
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var sheet = ss.getSheetByName('MONITORS');
+  if (!sheet) return;
+  var data = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0] === userId && data[i][4] === 'active') {
+      sheet.getRange(i+1, 5).setValue('completed');
+      sheet.getRange(i+1, 6).setValue(new Date());
+      return;
+    }
+  }
+}
+
+function saveFeedback(userId, type, content) {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var sheet = ss.getSheetByName('FEEDBACK_LOG') || ss.insertSheet('FEEDBACK_LOG');
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['userId','type','content','receivedAt']);
+    sheet.getRange(1,1,1,4).setBackground('#1a2d45').setFontColor('#fff').setFontWeight('bold');
+  }
+  sheet.appendRow([userId, type, content, new Date()]);
+}
+
+function sendMonitorJoinButton(replyToken) {
+  UrlFetchApp.fetch(LINE_API + '/reply', {
+    method: 'post',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+    payload: JSON.stringify({
+      replyToken: replyToken,
+      messages: [{ type: 'template', altText: 'モニター参加', template: {
+        type: 'buttons',
+        title: 'モニター募集（10名限定）',
+        text: '・1講座プレゼント\n・口コミ投稿で次回サブスク半額3ヶ月\n・期間 14日間',
+        actions: [
+          { type: 'postback', label: 'モニターに参加する', data: 'monitor_join' },
+        ]
+      }}]
+    }),
+    muteHttpExceptions: true
+  });
+}
+
+function sendMonitorMidSurvey(userId) {
+  UrlFetchApp.fetch(LINE_API + '/push', {
+    method: 'post',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+    payload: JSON.stringify({
+      to: userId,
+      messages: [{ type: 'template', altText: '5日目アンケート', template: {
+        type: 'buttons', text: 'ここまでの感触に近いものは？',
+        actions: [
+          { type: 'postback', label: '何か変わってきた', data: 'mon_mid_change' },
+          { type: 'postback', label: 'まだよく分からない', data: 'mon_mid_unclear' },
+          { type: 'postback', label: '合わない / 難しい', data: 'mon_mid_hard' },
+        ]
+      }}]
+    }),
+    muteHttpExceptions: true
+  });
+}
+
+function sendMonitorFinalSurvey(userId) {
+  UrlFetchApp.fetch(LINE_API + '/push', {
+    method: 'post',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+    payload: JSON.stringify({
+      to: userId,
+      messages: [{ type: 'template', altText: '最終アンケート', template: {
+        type: 'confirm', text: '口コミを書いていただけますか？\n（次回サブスク半額3ヶ月の特典付）',
+        actions: [
+          { type: 'postback', label: '書く', data: 'mon_final_yes' },
+          { type: 'postback', label: '今回はパス', data: 'mon_final_no' },
+        ]
+      }}]
+    }),
+    muteHttpExceptions: true
+  });
+}
+
+function registerMonitorManually(userId) {
+  if (!userId) { Logger.log('userId が必要です'); return; }
+  if (joinMonitor(userId)) {
+    Logger.log('モニター登録完了: ' + userId);
+  } else {
+    Logger.log('登録できませんでした（満席 or 既登録）: ' + userId);
+  }
+}
+
+function getMonitorReport() {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var monSheet = ss.getSheetByName('MONITORS');
+  if (!monSheet) { Logger.log('MONITORS シートがありません。setupSheets を実行してください。'); return; }
+  var data = monSheet.getDataRange().getValues();
+  var active = 0, completed = 0;
+  var activeList = [];
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][4] === 'active')    { active++; activeList.push(data[i][0] + '  ' + (data[i][1] || '')); }
+    if (data[i][4] === 'completed') { completed++; }
+  }
+  var fbSheet = ss.getSheetByName('FEEDBACK_LOG');
+  var fbCount = fbSheet ? Math.max(0, fbSheet.getLastRow() - 1) : 0;
+  Logger.log('=== モニターレポート ===');
+  Logger.log('募集枠       : ' + MONITOR_CONFIG.CAPACITY);
+  Logger.log('アクティブ   : ' + active);
+  Logger.log('残り枠       : ' + Math.max(0, MONITOR_CONFIG.CAPACITY - active));
+  Logger.log('完了済み     : ' + completed);
+  Logger.log('フィードバック: ' + fbCount + ' 件');
+  Logger.log('--- アクティブモニター ---');
+  activeList.forEach(function(s){ Logger.log(s); });
 }
