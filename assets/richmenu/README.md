@@ -1,7 +1,70 @@
-# LINE Rich Menu — PHASE 2 (Windows / PowerShell)
+# LINE Rich Menu — 登録ブートストラップ
 
-このフォルダの中身は、LINE Messaging API にリッチメニュー A / B / C を登録するための一回限りのブートストラップ資材です。
-登録が終わったら（PR本文の指示に従って）削除して構いません。
+このフォルダは、LINE Messaging API にリッチメニューを登録するための一回限りの資材置き場です。
+登録が終わったら不要になったファイルは削除して構いません。
+
+## バリエーション
+
+| 用途 | 実行環境 | エントリーポイント |
+| --- | --- | --- |
+| PRO リッチメニュー（2026 / 1枚構成） | Cloud Shell（Linux / bash） | `setup_richmenu_pro.sh` |
+| A / B / C リッチメニュー（旧 PHASE2） | Windows PowerShell | `phase2_run.ps1` |
+
+---
+
+## PRO リッチメニュー（Cloud Shell）
+
+> 画像 `rich_menu_pro.png` はリポジトリのルートに配置済み。スクリプトが GitHub raw から直接取得するため Cloud Shell へのファイル転送は不要。
+
+### 実行手順
+
+1. [Cloud Shell](https://shell.cloud.google.com/) を開く（`shoya.eigo@gmail.com` でログイン）
+2. リポジトリを取得（既に clone 済みなら `git pull`）
+   ```bash
+   git clone https://github.com/shoyatake/sho-eigo-gas.git
+   cd sho-eigo-gas
+   git pull
+   ```
+3. スクリプトを実行
+   ```bash
+   bash assets/richmenu/setup_richmenu_pro.sh
+   ```
+4. プロンプトが出たらチャネルアクセストークン（long-lived）を貼り付け
+   - 取得元: <https://developers.line.biz/console/channel/1657843747/messaging-api>
+   - 「Channel access token」セクションの Issue / Reissue で発行
+
+### 自動で実行される処理
+
+1. `rich_menu_pro.png` を GitHub raw から `~/rich_menu_pro.png` にダウンロード
+2. トークン検証（`/v2/bot/info`）
+3. 既存リッチメニューを全削除
+4. 5タップ領域の richmenu object を生成（`/tmp/rm.json`）
+5. `POST /v2/bot/richmenu` で作成
+6. `POST /v2/bot/richmenu/{id}/content` で画像アップロード
+7. `POST /v2/bot/user/all/richmenu/{id}` で全友だちのデフォルトに設定
+
+### 完了確認
+
+- sho eigo 公式 LINE のトーク画面を開き、新リッチメニューが表示されることを確認
+- 各エリアのタップ遷移を確認
+  - ヒーロー（左半分） → `https://sho-blog.com/lp/lp_katakana_trial.html`
+  - 右上左 → `https://sho-blog.com/courses_v9.html`
+  - 右上右 → `https://sho-blog.com/next-step.html`
+  - 右下左 → `https://sho-blog.com/next-step.html`
+  - 右下右 → 「質問があります」を自動送信
+
+### トラブル対応
+
+| エラー | 原因 | 対処 |
+| --- | --- | --- |
+| `画像取得失敗` | GitHub に画像なし | `rich_menu_pro.png` がリポジトリ root にあるか確認 |
+| `トークン無効` | トークン期限切れ／コピペミス | LINE Developers で再発行して再実行 |
+| `アップロード失敗 413` | 画像が 1MB 超 | 画像を再生成して 1MB 以下に圧縮 |
+| `アップロード失敗 400` | richmenu object の不正 | `assets/richmenu/menu_pro.json` の定義を確認 |
+
+---
+
+## 旧 PHASE 2（Windows / PowerShell）
 
 ## 中身
 
