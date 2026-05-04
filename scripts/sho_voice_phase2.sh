@@ -268,9 +268,9 @@ else
       echo "  ✅ $f"
     else
       echo "  ❌ $f (code=$code)"
-      head -c 200 /tmp/ftp_resp.txt 2>/dev/null
+      head -c 200 /tmp/ftp_resp.txt 2>/dev/null || true
       echo
-      fail=$((fail + 1))
+      fail=$((fail + 1)) || true
     fi
   done
   if [ "$fail" -gt 0 ]; then
