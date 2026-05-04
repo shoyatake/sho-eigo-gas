@@ -103,20 +103,25 @@ echo "  ✅ OUTPUT_DIR: $OUTPUT_DIR"
 echo ""
 
 # ═══════════════════════════════════════════════
-# Step 1: voice_id 検証（ElevenLabs アカウントに存在するか）
+# Step 1: voice_id 検証（任意 - voices:read 権限がない API key でも続行）
 # ═══════════════════════════════════════════════
 echo -e "${BLUE}▶ Step 1: voice_id 検証${NC}"
 HTTP=$(curl -s -o /tmp/voice_check.json -w "%{http_code}" \
   -H "xi-api-key: $ELEVENLABS_API_KEY" \
-  "https://api.elevenlabs.io/v1/voices/$VOICE_ID")
-if [ "$HTTP" != "200" ]; then
-  echo -e "${RED}❌ voice_id 検証失敗: HTTP $HTTP${NC}"
-  head -c 500 /tmp/voice_check.json
-  echo
+  "https://api.elevenlabs.io/v1/voices/$VOICE_ID" || echo "000")
+if [ "$HTTP" = "200" ]; then
+  VOICE_NAME=$(python3 -c "import json; print(json.load(open('/tmp/voice_check.json')).get('name','?'))")
+  echo "  ✅ voice 確認: $VOICE_NAME"
+elif [ "$HTTP" = "401" ] && grep -q "missing_permissions" /tmp/voice_check.json 2>/dev/null; then
+  echo -e "${YELLOW}  ⚠️ API key に voices:read 権限なし - 検証スキップして続行${NC}"
+elif [ "$HTTP" = "404" ]; then
+  echo -e "${RED}❌ voice_id がアカウントに存在しません: $VOICE_ID${NC}"
   exit 1
+else
+  echo -e "${YELLOW}  ⚠️ HTTP $HTTP - 検証スキップして続行${NC}"
+  head -c 300 /tmp/voice_check.json 2>/dev/null
+  echo
 fi
-VOICE_NAME=$(python3 -c "import json; print(json.load(open('/tmp/voice_check.json')).get('name','?'))")
-echo "  ✅ voice 確認: $VOICE_NAME"
 echo ""
 
 # ═══════════════════════════════════════════════
