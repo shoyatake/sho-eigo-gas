@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ElevenLabs voice sample generator for voice_id sVWsMHkLPX1qFn88g9s4.
+# ElevenLabs voice sample generator for voice_id ZYHkwuG2yr4rcubJRUms.
 # Generates 5 preview MP3s and packages them into a ZIP for review.
 #
 # Usage:
@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-VOICE_ID="${VOICE_ID:-sVWsMHkLPX1qFn88g9s4}"
+VOICE_ID="${VOICE_ID:-ZYHkwuG2yr4rcubJRUms}"
 MODEL_ID="${MODEL_ID:-eleven_multilingual_v2}"
 STABILITY="${STABILITY:-0.5}"
 SIMILARITY="${SIMILARITY:-0.75}"
