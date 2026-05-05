@@ -151,7 +151,37 @@ function handleFollow(event) {
   const msg = buildMessage('SC-MAIN', 0, userId);
   if (msg) {
     sendPushMessage(userId, msg);
+    // 続けて sho の声で 1 通だけ音声を送る (オンボーディング体験の核)
+    Utilities.sleep(800);
+    sendWelcomeAudio(userId);
     updateUserStep(userId, 'SC-MAIN', 1, new Date());
+  }
+}
+
+// 初回フォロー時、sho の IVC 声で「ようこそ」を audio message として送る
+// 既に Phase 1+2 で /trial/audio/sho/ に配置済の mp3 を使うので追加コスト無し
+function sendWelcomeAudio(userId) {
+  if (!userId) return;
+  // Script Properties で URL / duration を上書き可能 (本番音源に切り替えたい場合用)
+  var url = getProp('WELCOME_AUDIO_URL') || 'https://sho-blog.com/trial/audio/sho/day1_step00_ようこそ.mp3';
+  var durationMs = parseInt(getProp('WELCOME_AUDIO_DURATION_MS') || '15000', 10);
+  try {
+    UrlFetchApp.fetch(LINE_API + '/push', {
+      method: 'post',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+      payload: JSON.stringify({
+        to: userId,
+        messages: [{
+          type: 'audio',
+          originalContentUrl: url,
+          duration: durationMs
+        }]
+      }),
+      muteHttpExceptions: true
+    });
+    addTag(userId, 'welcome_audio_sent');
+  } catch(e) {
+    Logger.log('sendWelcomeAudio error: ' + e);
   }
 }
 
@@ -1520,18 +1550,191 @@ function weeklyParentReport() {
 }
 
 // ----------------------------------------
+// シェア用テキスト配信 cron (Day 2 完了直後、24h 以内、毎日 12:00 JST)
+// 「体験が良かったら誰かに話したくなる」瞬間を逃さない
+// ----------------------------------------
+function shareTextForDay2Completers() {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var tagsSheet = ss.getSheetByName('TAGS');
+  if (!tagsSheet) return;
+  var tags = tagsSheet.getDataRange().getValues();
+  var now = new Date();
+  var dayMs = 24 * 60 * 60 * 1000;
+
+  // read_s1 タグが過去 24h 以内に付いたユーザーを集める
+  var recentReaders = [];
+  for (var i = 1; i < tags.length; i++) {
+    if (tags[i][1] !== 'read_s1') continue;
+    var addedAt = tags[i][2] ? new Date(tags[i][2]) : null;
+    if (!addedAt) continue;
+    if ((now - addedAt) > dayMs) continue;
+    recentReaders.push(tags[i][0]);
+  }
+  if (recentReaders.length === 0) {
+    Logger.log('shareTextForDay2Completers: no recent Day 2 clickers');
+    return;
+  }
+
+  var sentCount = 0;
+  for (var k = 0; k < recentReaders.length; k++) {
+    var userId = recentReaders[k];
+    if (hasTag(userId, 'share_text_sent')) continue;
+    if (hasTag(userId, 'deleted')) continue;
+    if (hasTag(userId, 'purchased')) continue;  // Pro ユーザーには別フロー
+
+    // Claude で「コピペ歓迎」のシェア文 1 つを生成
+    var prompt =
+      'sho eigo の 2 日無料体験を完走した直後のユーザーが、SNS や友人に体験を共有するときに使えそうな短い「ことば」を 1 つだけ書いてください。\n\n' +
+      '制約:\n' +
+      '- 60 字以内\n' +
+      '- 「英語の音」「ワラ (water)」「ターニラフ (turn it off)」のいずれかに触れる\n' +
+      '- 押し売りや商品名は書かない\n' +
+      '- 体験者の独白、もしくは小さな気づきの形で\n' +
+      '- 過剰な絵文字は使わない (1 個までなら可)\n\n' +
+      '出力形式: ことば 1 行のみ、引用符不要、前後に説明不要';
+    var result = callClaudeApi(prompt, { maxTokens: 120 });
+    var quote = (result && result.text) ? result.text.trim().split('\n')[0] : 'water は「ワラ」だった。英語の音の正体を見たら、世界が変わった。';
+
+    var msg =
+      'Day 2 まで触れてくれてありがとう。\n\n' +
+      'もし誰かにこの体験を話すなら、\nこんな言葉が伝わるかも:\n\n' +
+      '「' + quote + '」\n\n' +
+      'コピペ歓迎です。\n（友人を誘ってもらえると嬉しいです）';
+
+    sendPushMessage(userId, msg);
+    addTag(userId, 'share_text_sent');
+    sentCount++;
+    Utilities.sleep(500);
+    if (sentCount >= 30) break;
+  }
+  Logger.log('shareTextForDay2Completers: ' + sentCount + ' share texts sent');
+  if (sentCount > 0) notifyAlert('[Share cron] ' + sentCount + ' share texts sent', 'slack');
+}
+
+// ----------------------------------------
+// 月次成長アルバム (保護者プラン、毎月 1 日 9:00 JST)
+// テーマ: 「音声学習は、思い出になる」
+// 過去 30 日のクリック / AI 添削 / シナリオ進捗を 1 通の長文「アルバム」にして送信
+// ----------------------------------------
+function monthlyParentAlbum() {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var usersSheet = ss.getSheetByName('USERS');
+  if (!usersSheet) return;
+  var users = usersSheet.getDataRange().getValues();
+  var since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  // 30 日のシグナル収集
+  var clickByUser = {};
+  var clickPeakByUser = {};  // userId → { day: 'MM/dd', count: n }
+  var clickSheet = ss.getSheetByName('CLICK_LOG');
+  if (clickSheet) {
+    var rows = clickSheet.getDataRange().getValues();
+    var perDay = {};  // userId → { dayKey: count }
+    for (var i = 1; i < rows.length; i++) {
+      var at = rows[i][3] ? new Date(rows[i][3]) : null;
+      if (!at || at < since) continue;
+      var uid = rows[i][0];
+      clickByUser[uid] = (clickByUser[uid] || 0) + 1;
+      var dayKey = Utilities.formatDate(at, 'JST', 'MM/dd');
+      perDay[uid] = perDay[uid] || {};
+      perDay[uid][dayKey] = (perDay[uid][dayKey] || 0) + 1;
+    }
+    Object.keys(perDay).forEach(function(uid) {
+      var entries = Object.entries(perDay[uid]);
+      entries.sort(function(a, b) { return b[1] - a[1]; });
+      if (entries.length) clickPeakByUser[uid] = { day: entries[0][0], count: entries[0][1] };
+    });
+  }
+
+  var aiHighlights = {};  // userId → [{ text, day }]
+  var fbSheet = ss.getSheetByName('FEEDBACK_LOG');
+  if (fbSheet) {
+    var fbRows = fbSheet.getDataRange().getValues();
+    for (var j = 1; j < fbRows.length; j++) {
+      if (fbRows[j][1] !== 'ai_writing') continue;
+      var fAt = fbRows[j][3] ? new Date(fbRows[j][3]) : null;
+      if (!fAt || fAt < since) continue;
+      var fUid = fbRows[j][0];
+      var content = fbRows[j][2] || '';
+      var firstLine = content.split('\n')[1] || content.split('\n')[0] || '';  // "原文:" の次の行
+      aiHighlights[fUid] = aiHighlights[fUid] || [];
+      if (aiHighlights[fUid].length < 3) {
+        aiHighlights[fUid].push({
+          text: firstLine.substr(0, 60),
+          day: Utilities.formatDate(fAt, 'JST', 'MM/dd')
+        });
+      }
+    }
+  }
+
+  var sentCount = 0;
+  for (var k = 1; k < users.length; k++) {
+    var userId = users[k][0]; if (!userId) continue;
+    if (!hasTag(userId, 'purchased_plan_family')) continue;
+    if (hasTag(userId, 'deleted')) continue;
+
+    var totalClicks = clickByUser[userId] || 0;
+    var peak = clickPeakByUser[userId];
+    var highlights = aiHighlights[userId] || [];
+    var displayName = users[k][1] || '保護者';
+    var monthLabel = Utilities.formatDate(new Date(Date.now() - 24 * 60 * 60 * 1000), 'JST', 'yyyy 年 M 月');
+
+    // Claude で「思い出アルバム」風メッセージ
+    var prompt =
+      'sho eigo の「保護者プラン」を契約している ' + displayName + ' さん向けに、' + monthLabel + ' の「思い出アルバム」を書いてください。\n\n' +
+      'コンセプト: 「音声学習は、思い出になる」\n' +
+      '上達ではなく、お子さんが英語に触れた時間そのものを残す。1 年後にこの月を読み返して、その時の家庭の風景がよみがえることを目指します。\n\n' +
+      '今月の事実:\n' +
+      '- 配信教材アクセス回数: ' + totalClicks + ' 回\n' +
+      (peak ? '- 一番触れた日: ' + peak.day + ' (' + peak.count + ' 回)\n' : '') +
+      '- AI 添削で書いた英文 (抜粋): ' + (highlights.length ? highlights.map(function(h){ return '「' + h.text + '」(' + h.day + ')'; }).join(', ') : 'なし') + '\n\n' +
+      '形式 (450 字以内、日本語、保護者目線、温度感重視):\n' +
+      '・冒頭: 「' + monthLabel + 'の音声アルバム」のような 1 行タイトル\n' +
+      '・1 段落目: 今月の様子を一言で。数字は 1〜2 個さりげなく。\n' +
+      '・2 段落目: 抜粋した英文があれば、その 1 つを引用しつつ、書いた瞬間のお子さんを保護者に想像させる文。なければ 1 行で省略。\n' +
+      '・3 段落目: 来月への並走の言葉。1 文だけ。\n' +
+      '・末尾: 「— sho より」と添える。\n\n' +
+      '禁則: 「成長」「上達」を 2 回以上使わない。代わりに「触れた」「重ねた」「向き合った」「残った」を使う。';
+
+    var result = callClaudeApi(prompt, { maxTokens: 700, model: 'claude-haiku-4-5-20251001' });
+    var albumText;
+    if (result.error || !result.text) {
+      albumText =
+        monthLabel + 'の音声アルバム\n\n' +
+        'お子さんは今月、' + totalClicks + ' 回 sho の配信に触れました。\n' +
+        (peak ? '一番熱心だった日は ' + peak.day + ' でした。\n\n' : '\n') +
+        (highlights.length ? '書いた英文の中から:\n「' + highlights[0].text + '」(' + highlights[0].day + ')\n\n' : '') +
+        '来月もこの時間が、後から振り返れる思い出として残るように、並走します。\n\n— sho より';
+    } else {
+      albumText = result.text.trim();
+    }
+
+    sendPushMessage(userId, '【月次成長アルバム】\n音声学習は、思い出になる。\n\n' + albumText);
+    sentCount++;
+    Utilities.sleep(800);
+    if (sentCount >= 50) break;
+  }
+  Logger.log('monthlyParentAlbum: ' + sentCount + ' albums sent');
+  if (sentCount > 0) notifyAlert('[月次アルバム] ' + sentCount + ' 件送信', 'all');
+}
+
+// ----------------------------------------
 // Trigger setup (extend)
 // ----------------------------------------
 function setupAllTriggers() {
   setupTrigger();  // 既存の checkAndSendScheduled (毎時)
   ScriptApp.getProjectTriggers().forEach(function(t) {
     var fn = t.getHandlerFunction();
-    if (fn === 'snapshotDailyMetrics' || fn === 'nudgeTrialDropouts' || fn === 'weeklyParentReport') ScriptApp.deleteTrigger(t);
+    if (fn === 'snapshotDailyMetrics' || fn === 'nudgeTrialDropouts' ||
+        fn === 'weeklyParentReport' || fn === 'monthlyParentAlbum' ||
+        fn === 'shareTextForDay2Completers') ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('snapshotDailyMetrics').timeBased().atHour(23).nearMinute(55).everyDays(1).create();
-  ScriptApp.newTrigger('nudgeTrialDropouts')  .timeBased().atHour(21).everyDays(1).create();
-  ScriptApp.newTrigger('weeklyParentReport')  .timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(9).create();
-  Logger.log('全トリガー設定完了 (checkAndSendScheduled + snapshotDailyMetrics + nudgeTrialDropouts + weeklyParentReport)');
+  ScriptApp.newTrigger('snapshotDailyMetrics')        .timeBased().atHour(23).nearMinute(55).everyDays(1).create();
+  ScriptApp.newTrigger('nudgeTrialDropouts')          .timeBased().atHour(21).everyDays(1).create();
+  ScriptApp.newTrigger('shareTextForDay2Completers')  .timeBased().atHour(12).everyDays(1).create();
+  ScriptApp.newTrigger('weeklyParentReport')          .timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(9).create();
+  ScriptApp.newTrigger('monthlyParentAlbum')          .timeBased().onMonthDay(1).atHour(9).create();
+  Logger.log('全トリガー設定完了 (checkAndSendScheduled + snapshotDailyMetrics + nudgeTrialDropouts + shareTextForDay2Completers + weeklyParentReport + monthlyParentAlbum)');
 }
 
 // ----------------------------------------
@@ -1559,7 +1762,7 @@ function checkProductionReadiness() {
 
   var triggers = ScriptApp.getProjectTriggers();
   var triggerNames = triggers.map(function(t){ return t.getHandlerFunction(); });
-  var requiredTriggers = ['checkAndSendScheduled','snapshotDailyMetrics','nudgeTrialDropouts','weeklyParentReport'];
+  var requiredTriggers = ['checkAndSendScheduled','snapshotDailyMetrics','nudgeTrialDropouts','weeklyParentReport','monthlyParentAlbum','shareTextForDay2Completers'];
   var missingTriggers = requiredTriggers.filter(function(t){ return triggerNames.indexOf(t) === -1; });
 
   var ss = SpreadsheetApp.openById(CONFIG.SS_ID);

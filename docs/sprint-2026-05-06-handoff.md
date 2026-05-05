@@ -170,6 +170,21 @@ function _testParentReport() {
   weeklyParentReport();
 }
 
+// 月次成長アルバム手動実行 (保護者プラン)
+function _testMonthlyAlbum() {
+  monthlyParentAlbum();
+}
+
+// シェアテキスト cron 手動実行 (Day 2 完了直後の人がいれば送信)
+function _testShareText() {
+  shareTextForDay2Completers();
+}
+
+// 自分宛にウェルカム音声を送信して動作確認
+function _testWelcomeAudio() {
+  sendWelcomeAudio('<your_line_uid>');
+}
+
 // ダッシュボード値の手動計算
 function _checkMetrics() {
   Logger.log(JSON.stringify(buildAdminDashboardJson()));
@@ -303,7 +318,7 @@ git push --force-with-lease origin main
 - [ ] `_testNudge` 手動実行 → テスト LINE で受信 (24h 経過した離脱者 が居れば)
 - [ ] Slack に手動アラート通知が 1 件届いている
 - [ ] GitHub Actions → SNS Proposal `dry_run: false` 成功 → Notion に 3 案 + LINE 通知
-- [ ] Apps Script トリガー一覧に `nudgeTrialDropouts` (21:00) / `snapshotDailyMetrics` (23:55) / `weeklyParentReport` (日曜 9:00) が登録済
+- [ ] Apps Script トリガー一覧に `nudgeTrialDropouts` (21:00) / `snapshotDailyMetrics` (23:55) / `shareTextForDay2Completers` (12:00) / `weeklyParentReport` (日曜 9:00) / `monthlyParentAlbum` (月初 9:00) が登録済
 - [ ] `_readiness()` 実行で `Ready: YES ✅` 表示
 
 完了したら `pre-pro-2026-05-06` タグは保持したまま、新しい安定タグ `v-prod-2026-05-06` を打って締める。
