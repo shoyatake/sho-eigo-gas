@@ -21,6 +21,16 @@ function doPost(e) {
     if (e && e.parameter && e.parameter.action === 'improvement') {
       return handleImprovementRequest(e);
     }
+    if (e && e.parameter && e.parameter.action === 'stripe_webhook') {
+      if (!verifyStripeWebhookUrlSecret(e)) {
+        return ContentService.createTextOutput(JSON.stringify({ok: false, reason: 'unauthorized'}))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var rawBody = (e.postData && e.postData.contents) || '';
+      var result = handleStripeWebhook(rawBody);
+      return ContentService.createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
     const body = JSON.parse(e.postData.contents);
     body.events.forEach(function(event) {
       if (event.type === 'follow')   handleFollow(event);
@@ -68,6 +78,37 @@ function renderDashboardResult(ok, message) {
 }
 
 function doGet(e) {
+  // Admin dashboard
+  if (e && e.parameter && e.parameter.action === 'admin') {
+    if (!checkAdminToken(e.parameter.token || '')) {
+      return HtmlService.createHtmlOutput('<h1>403 Forbidden</h1>');
+    }
+    if (e.parameter.format === 'json') {
+      return ContentService.createTextOutput(JSON.stringify(buildAdminDashboardJson()))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    return buildAdminDashboardHtml();
+  }
+  // Stripe Checkout 起動 (pages/payment/index.html から飛んでくる)
+  if (e && e.parameter && e.parameter.action === 'checkout') {
+    var plan = e.parameter.plan || '';
+    var uid  = e.parameter.uid || '';
+    if (!uid) {
+      return HtmlService.createHtmlOutput('<h1>uid が必要です</h1><p>LINE Bot のメッセージから「Pro に進む」をタップしてください。</p>');
+    }
+    var result = createCheckoutSession(uid, plan);
+    if (result && result.url) {
+      return HtmlService.createHtmlOutput(
+        '<script>window.location.replace("' + result.url.replace(/"/g, '&quot;') + '")</script>'
+      );
+    }
+    var msg = result && result.error === 'not_allowed_yet' ?
+      'Pro プランは現在テスト中です。明日以降にお試しください。' :
+      '決済画面の準備中にエラーが発生しました。少し時間をおいてからお試しください。';
+    return HtmlService.createHtmlOutput('<h1>準備中</h1><p>' + msg + '</p>');
+  }
+
+  // 既存: tracking redirect
   const userId    = e.parameter.uid  || '';
   const tag       = e.parameter.tag  || '';
   const redirectUrl = e.parameter.url || 'https://sho-blog.com/all/trial/trial_day1.html';
@@ -99,6 +140,12 @@ function handleFollow(event) {
 function handleMessage(event) {
   const userId = event.source.userId;
   const text   = (event.message && event.message.text) || '';
+
+  // AI 添削モード (SC-MAIN step 4 後に ai_writing_pending を付与してある)
+  if (hasTag(userId, 'ai_writing_pending')) {
+    handleAiWriting(event);
+    return;
+  }
 
   if (hasTag(userId, 'mon_feedback_pending')) {
     const isTestimonial = hasTag(userId, 'mon_testimonial_pending');
@@ -132,7 +179,8 @@ function handleMessage(event) {
     '体験':  '▼ 2日間無料体験はこちら\nhttps://sho-blog.com/all/trial/trial_day1.html',
     'day1':  '▼ 体験Day 1\nhttps://sho-blog.com/all/trial/trial_day1.html',
     'day2':  '▼ 体験Day 2\nhttps://sho-blog.com/all/trial/trial_day2.html',
-    'プラン': '▼ プランの詳細\nhttps://sho-blog.com/all/trial/next_step_day2.html',
+    'プラン': '▼ Pro プランの詳細\nhttps://sho-blog.com/payment/',
+    'pro':   '▼ Pro プランの詳細\nhttps://sho-blog.com/payment/',
   };
   const lowerText = text.toLowerCase();
   for (const key in keywords) {
@@ -201,6 +249,14 @@ function handlePostback(event) {
     replyMessage(event.replyToken, data === 'quiz_B'
       ? '正解です！Flap Tを知っているんですね。もう少し深い話を続けます 🎵'
       : '惜しい！正解は「ベラ」です。tがラ行に変わる現象、Flap Tといいます 🎵');
+    return;
+  }
+
+  // Pro プラン選択 (SC-MAIN step 5 から飛んでくる)
+  if (data.indexOf('plan_') === 0) {
+    var plan = data.replace('plan_', '');
+    handlePlanSelected(event, plan);
+    return;
   }
 }
 
@@ -239,6 +295,8 @@ function checkAndSendScheduled() {
     if (step.sendQuiz)              { Utilities.sleep(500); sendQuizButtons(userId); }
     if (step.sendMonitorMidSurvey)  { Utilities.sleep(500); sendMonitorMidSurvey(userId); }
     if (step.sendMonitorFinalSurvey){ Utilities.sleep(500); sendMonitorFinalSurvey(userId); }
+    if (step.markAiWritingPending)  { addTag(userId, 'ai_writing_pending'); }
+    if (step.sendPlanSelect)        { Utilities.sleep(500); sendPlanSelectButtons(userId); }
     Utilities.sleep(200);
   }
   checkEngagement();
@@ -335,6 +393,10 @@ const SCENARIOS_DATA = {
       message: '少しだけ教えていただけますか。\n\nあなたのことを知ることで\nお届けする情報をより役立てます。\n\n下のボタンからお答えください。' },
     { stepNum: 3, delayDays: 5, sendHour: 8, trackingTag: 'read_s3',
       message: '声に出してみてください。\n\n「turn it off」\n\nこれ、実は「ターニラフ」と読みます。\n単語がつながって全然別の音になる。\nこれがLinkingという現象です。\n\n▼ 体験で音の違いを確かめる\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+    { stepNum: 4, delayDays: 2, sendHour: 19, trackingTag: 'read_s4', markAiWritingPending: true,
+      message: '今日は AI 添削を 1 行だけ試してみませんか。\n\nお題:「昨日は雨でした」\n\nこの文を英語 1 行にして、このトークに送ってください。\n（200 字以内 / 日本語訳は不要）\n\nsho の AI が改善文と 1 つだけのコツを返します。' },
+    { stepNum: 5, delayDays: 2, sendHour: 8, trackingTag: 'read_s5', sendPlanSelect: true,
+      message: 'ここまで体験してみていかがでしたか。\n\n続けてみたい場合、Pro プランをご用意しています。\n\n・個人 Pro 3,980円/月\n・親子 Pro 6,980円/月\n・法人 Pro はご相談\n\nいつでも 1 クリック解約できます。\nどのプランで進めますか？' }
   ],
   'SC-PARENT': [
     { stepNum: 0, delayDays: 0, sendHour: 8, trackingTag: 'read_p1',
@@ -562,6 +624,8 @@ function sendStepNow(userId, scenarioId, stepNum) {
   if (step && step.sendQuiz)               { Utilities.sleep(500); sendQuizButtons(userId); }
   if (step && step.sendMonitorMidSurvey)   { Utilities.sleep(500); sendMonitorMidSurvey(userId); }
   if (step && step.sendMonitorFinalSurvey) { Utilities.sleep(500); sendMonitorFinalSurvey(userId); }
+  if (step && step.markAiWritingPending)   { addTag(userId, 'ai_writing_pending'); }
+  if (step && step.sendPlanSelect)         { Utilities.sleep(500); sendPlanSelectButtons(userId); }
   Logger.log('送信完了: ' + scenarioId + ' step ' + stepNum + ' → ' + userId);
 }
 
@@ -781,4 +845,505 @@ function getMonitorReport() {
   Logger.log('フィードバック: ' + fbCount + ' 件');
   Logger.log('--- アクティブモニター ---');
   activeList.forEach(function(s){ Logger.log(s); });
+}
+
+// ============================================================
+// Pro / Stripe / AI 添削 / Admin / cron (sprint 2026-05-06)
+// 既存コードと干渉しないよう独立セクションで追加。
+// 全機能は Script Properties で必要な値が未設定なら no-op + Logger.log。
+// ============================================================
+
+const PRO_PLANS = {
+  personal: { price_jpy: 3980, ai_writing_quota: 20, label: '個人 Pro',           stripe_price_id_prop: 'STRIPE_PRICE_PERSONAL' },
+  family:   { price_jpy: 6980, ai_writing_quota: 40, label: '親子 Pro',           stripe_price_id_prop: 'STRIPE_PRICE_FAMILY'   },
+  corp:     { price_jpy: 9800, ai_writing_quota: 0,  label: '法人 Pro (1 シート)', stripe_price_id_prop: 'STRIPE_PRICE_CORP'     }
+};
+
+function getProp(name) {
+  return PropertiesService.getScriptProperties().getProperty(name) || '';
+}
+
+function todayJSTKey() {
+  return Utilities.formatDate(new Date(), 'JST', 'yyyyMMdd');
+}
+
+// ----------------------------------------
+// Stripe Checkout
+// ----------------------------------------
+function createCheckoutSession(userId, plan) {
+  if (!userId || !plan) return { error: 'missing_params' };
+  if (!PRO_PLANS[plan]) return { error: 'unknown_plan' };
+  var stripeKey = getProp('STRIPE_SECRET_KEY');
+  if (!stripeKey) return { error: 'stripe_not_configured' };
+
+  // Safety guard: ALLOWED_TEST_UIDS が設定されており LIVE_OPEN_AFTER 未到達なら、リスト内 UID のみ許可
+  var allowedUidsRaw = getProp('ALLOWED_TEST_UIDS');
+  if (allowedUidsRaw) {
+    var allowedUids = allowedUidsRaw.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s; });
+    var liveOpenAfterStr = getProp('LIVE_OPEN_AFTER');
+    var liveOpenAfter = liveOpenAfterStr ? new Date(liveOpenAfterStr) : null;
+    var stillGated = !liveOpenAfter || new Date() < liveOpenAfter;
+    if (stillGated && allowedUids.indexOf(userId) === -1) {
+      Logger.log('createCheckoutSession blocked: ' + userId + ' not in ALLOWED_TEST_UIDS');
+      return { error: 'not_allowed_yet' };
+    }
+  }
+
+  var priceId = getProp(PRO_PLANS[plan].stripe_price_id_prop);
+  if (!priceId) return { error: 'price_id_missing' };
+
+  var payload = {
+    'mode': 'subscription',
+    'success_url': 'https://sho-blog.com/payment/success.html?session_id={CHECKOUT_SESSION_ID}',
+    'cancel_url':  'https://sho-blog.com/payment/cancel.html',
+    'client_reference_id': userId,
+    'line_items[0][price]': priceId,
+    'line_items[0][quantity]': 1,
+    'metadata[lineUserId]': userId,
+    'metadata[plan]': plan,
+    'allow_promotion_codes': 'true'
+  };
+  var formData = Object.keys(payload).map(function(k){
+    return encodeURIComponent(k) + '=' + encodeURIComponent(payload[k]);
+  }).join('&');
+
+  var resp = UrlFetchApp.fetch('https://api.stripe.com/v1/checkout/sessions', {
+    method: 'post',
+    headers: { 'Authorization': 'Bearer ' + stripeKey, 'Content-Type': 'application/x-www-form-urlencoded' },
+    payload: formData,
+    muteHttpExceptions: true
+  });
+  var status = resp.getResponseCode();
+  var body = resp.getContentText();
+  if (status !== 200) {
+    Logger.log('Stripe checkout create failed: ' + status + ' ' + body.substr(0, 300));
+    notifyAlert('[Stripe] checkout 作成失敗 status=' + status, 'all');
+    return { error: 'stripe_api_error', status: status };
+  }
+  try {
+    var data = JSON.parse(body);
+    return { url: data.url, id: data.id };
+  } catch(e) {
+    return { error: 'stripe_parse_error' };
+  }
+}
+
+// GAS doPost は HTTP ヘッダを取れないため、Stripe-Signature による HMAC 検証は使わず、
+// 1) URL クエリ secret 一致 + 2) Stripe API で session を再 GET して整合性確認、の 2 段で守る。
+function verifyStripeWebhookUrlSecret(e) {
+  var urlSecret = getProp('STRIPE_WEBHOOK_URL_SECRET');
+  if (!urlSecret) return false;  // 未設定なら全部弾く
+  var got = (e && e.parameter && e.parameter.secret) || '';
+  return got === urlSecret;
+}
+
+function reverifyStripeObject(objType, objId) {
+  if (!objId) return null;
+  var key = getProp('STRIPE_SECRET_KEY');
+  if (!key) return null;
+  var path = (objType === 'session') ? '/v1/checkout/sessions/' : '/v1/subscriptions/';
+  var resp = UrlFetchApp.fetch('https://api.stripe.com' + path + objId, {
+    method: 'get',
+    headers: { 'Authorization': 'Bearer ' + key },
+    muteHttpExceptions: true
+  });
+  if (resp.getResponseCode() !== 200) {
+    Logger.log('reverifyStripeObject ' + objType + '/' + objId + ' failed: ' + resp.getResponseCode());
+    return null;
+  }
+  try { return JSON.parse(resp.getContentText()); } catch(e) { return null; }
+}
+
+function handleStripeWebhook(rawBody) {
+  var event;
+  try { event = JSON.parse(rawBody); } catch(e) { return { ok: false, reason: 'parse_error' }; }
+  if (event.type === 'checkout.session.completed') {
+    var session = event.data && event.data.object;
+    if (!session || !session.id) return { ok: false, reason: 'no_session' };
+    // Stripe API で再確認 (なりすまし防止)
+    var verified = reverifyStripeObject('session', session.id);
+    if (!verified || verified.payment_status !== 'paid') {
+      Logger.log('Stripe webhook reverify failed for session ' + session.id);
+      notifyAlert('[Stripe] webhook reverify 失敗 session=' + session.id, 'all');
+      return { ok: false, reason: 'reverify_failed' };
+    }
+    session = verified;  // 信頼できるソースで上書き
+    {
+      var lineUid = (session.metadata && session.metadata.lineUserId) || session.client_reference_id || '';
+      var plan = (session.metadata && session.metadata.plan) || '';
+      if (lineUid) {
+        addTag(lineUid, 'purchased');
+        if (plan) addTag(lineUid, 'purchased_plan_' + plan);
+        var proMenuId = getProp('LINE_RICHMENU_PRO_ID');
+        if (proMenuId) {
+          UrlFetchApp.fetch('https://api.line.me/v2/bot/user/' + lineUid + '/richmenu/' + proMenuId, {
+            method: 'post',
+            headers: { 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+            muteHttpExceptions: true
+          });
+        }
+        sendPushMessage(lineUid, 'ご登録ありがとうございます！\n\nPro プランへようこそ。\n今日からよろしくお願いします。');
+      }
+      logCheckoutSuccess(session);
+      notifyAlert('[Pro] 決済完了 plan=' + plan + ' uid=' + (lineUid || '?').substr(0, 10) + '...', 'all');
+    }
+  } else if (event.type === 'customer.subscription.deleted') {
+    var sub = event.data && event.data.object;
+    if (sub && sub.metadata && sub.metadata.lineUserId) {
+      removeTag(sub.metadata.lineUserId, 'purchased');
+      notifyAlert('[Pro] 解約 uid=' + sub.metadata.lineUserId.substr(0, 10) + '...', 'slack');
+    }
+  }
+  return { ok: true };
+}
+
+function logCheckoutSuccess(session) {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var sheet = ss.getSheetByName('PURCHASES') || ss.insertSheet('PURCHASES');
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['lineUserId','plan','sessionId','customerId','amount','currency','completedAt']);
+    sheet.getRange(1,1,1,7).setBackground('#1a2d45').setFontColor('#fff').setFontWeight('bold');
+  }
+  sheet.appendRow([
+    (session.metadata && session.metadata.lineUserId) || session.client_reference_id || '',
+    (session.metadata && session.metadata.plan) || '',
+    session.id || '',
+    session.customer || '',
+    session.amount_total || '',
+    session.currency || 'jpy',
+    new Date()
+  ]);
+}
+
+function sendPlanSelectButtons(userId) {
+  UrlFetchApp.fetch(LINE_API + '/push', {
+    method: 'post',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+    payload: JSON.stringify({
+      to: userId,
+      messages: [{ type: 'template', altText: 'Pro プランを選ぶ', template: {
+        type: 'buttons', text: 'どのプランで進めますか？',
+        actions: [
+          { type: 'postback', label: '個人 Pro 3,980円/月',     data: 'plan_personal' },
+          { type: 'postback', label: '親子 Pro 6,980円/月',     data: 'plan_family'   },
+          { type: 'postback', label: '法人 Pro 相談',            data: 'plan_corp'     }
+        ]
+      }}]
+    }),
+    muteHttpExceptions: true
+  });
+}
+
+function handlePlanSelected(event, plan) {
+  var userId = event.source.userId;
+  if (plan === 'corp') {
+    replyMessage(event.replyToken, '法人 Pro はカスタマイズが入るので、LINE で直接お話しさせてください。\n（10 シート〜 / シート単位課金 / 月次サマリ Slack 通知付き）');
+    return;
+  }
+  var result = createCheckoutSession(userId, plan);
+  if (result.error || !result.url) {
+    if (result.error === 'not_allowed_yet') {
+      replyMessage(event.replyToken, 'Pro プランは現在、本番テスト中です。\n明日以降にもう一度お試しください。');
+    } else if (result.error === 'stripe_not_configured' || result.error === 'price_id_missing') {
+      replyMessage(event.replyToken, 'Pro プランの準備中です。\n少しお待ちください。');
+    } else {
+      replyMessage(event.replyToken, '決済画面の準備中にエラーが発生しました。\nしばらく経ってからお試しください。');
+    }
+    Logger.log('handlePlanSelected error: ' + JSON.stringify(result));
+    return;
+  }
+  replyMessage(event.replyToken, '下記から決済を完了してください。\n（解約はいつでもお客様ポータルから可能）\n\n' + result.url);
+}
+
+// ----------------------------------------
+// Claude API
+// ----------------------------------------
+function callClaudeApi(prompt, opts) {
+  var key = getProp('ANTHROPIC_API_KEY');
+  if (!key) return { error: 'anthropic_not_configured' };
+  opts = opts || {};
+  var model = opts.model || 'claude-haiku-4-5-20251001';
+  var maxTokens = opts.maxTokens || 300;
+  var system = opts.system || 'あなたは優しい英語の先生です。日本語で温かく、200 字以内で答えてください。';
+  var resp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+    method: 'post',
+    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+    payload: JSON.stringify({ model: model, max_tokens: maxTokens, system: system, messages: [{ role: 'user', content: prompt }] }),
+    muteHttpExceptions: true
+  });
+  var status = resp.getResponseCode();
+  if (status !== 200) {
+    Logger.log('Claude API error: ' + status + ' ' + resp.getContentText().substr(0, 300));
+    return { error: 'api_error', status: status };
+  }
+  try {
+    var data = JSON.parse(resp.getContentText());
+    if (data.content && data.content[0] && data.content[0].text) {
+      return { text: data.content[0].text };
+    }
+    return { error: 'unexpected_response' };
+  } catch(e) { return { error: 'parse_error' }; }
+}
+
+// ----------------------------------------
+// AI 添削
+// ----------------------------------------
+function checkRateLimit(key, maxCalls, windowSec) {
+  var props = PropertiesService.getScriptProperties();
+  var now = Math.floor(Date.now() / 1000);
+  var windowKey = 'rate_' + key + '_' + Math.floor(now / windowSec);
+  var cur = parseInt(props.getProperty(windowKey) || '0');
+  if (cur >= maxCalls) return false;
+  props.setProperty(windowKey, String(cur + 1));
+  return true;
+}
+
+function handleAiWriting(event) {
+  var userId = event.source.userId;
+  var text = (event.message && event.message.text) || '';
+  if (text.length > 200 || !/[a-zA-Z]/.test(text)) {
+    replyMessage(event.replyToken, '英作文は 200 字以内 + 英文で送ってください。\n（日本語訳は不要です）');
+    return;
+  }
+  var todayTag = 'ai_writing_done_' + todayJSTKey();
+  if (hasTag(userId, todayTag)) {
+    replyMessage(event.replyToken, '今日の AI 添削は完了しています。\n明日また送ってください。');
+    return;
+  }
+  if (!checkRateLimit('ai_writing_global', 5, 60)) {
+    replyMessage(event.replyToken, '今アクセスが集中しています。\n1〜2 分してからもう一度送ってください。');
+    return;
+  }
+  var prompt =
+    '次の英作文を添削してください。元の意図を尊重し、自然な英語にしてください。\n\n' +
+    '生徒の英作文:\n' + text + '\n\n' +
+    '以下の形式で 200 字以内で返してください。\n\n' +
+    '✅ 改善文:\n（1行で書き直した英文）\n\n' +
+    '💡 ポイント:\n（80 字以内で1つの改善ポイント。日本語）';
+  var result = callClaudeApi(prompt, { maxTokens: 300 });
+  if (result.error) {
+    replyMessage(event.replyToken, 'ありがとうございます！\n明日また送ってくださいね。');
+    Logger.log('AI 添削 graceful degradation: ' + result.error);
+    return;
+  }
+  removeTag(userId, 'ai_writing_pending');
+  addTag(userId, todayTag);
+  saveFeedback(userId, 'ai_writing', '原文:\n' + text + '\n\n添削:\n' + result.text);
+  replyMessage(event.replyToken, result.text);
+}
+
+// SC-MAIN step 4 配信時、ユーザーに ai_writing_pending タグを付与する
+// (checkAndSendScheduled で送信した直後に呼ばれる想定。step.beforeSendHook で対応)
+function arrangeAiWritingPrompt(userId) {
+  addTag(userId, 'ai_writing_pending');
+}
+
+// ----------------------------------------
+// Admin Dashboard
+// ----------------------------------------
+function checkAdminToken(token) {
+  var expected = getProp('ADMIN_TOKEN');
+  return expected && token === expected;
+}
+
+function buildAdminDashboardHtml() {
+  var html = '<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>sho eigo Admin</title>' +
+    '<style>body{font-family:"Hiragino Sans",sans-serif;background:#f4f4f0;color:#222;margin:0;padding:24px;line-height:1.6;}' +
+    '.card{background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 2px 6px rgba(0,0,0,0.06);}' +
+    'h1{font-size:18px;margin:0 0 16px;}h2{font-size:14px;color:#666;margin:0 0 8px;}' +
+    '.metric{font-size:28px;font-weight:bold;color:#1a2d45;}' +
+    '.row{display:flex;gap:12px;flex-wrap:wrap;}.row .card{flex:1;min-width:140px;}' +
+    '.muted{color:#888;font-size:12px;}</style></head><body>' +
+    '<h1>sho eigo Admin</h1>' +
+    '<p class="muted">JST タイムスタンプで日次集計。手動リロードで更新。</p>' +
+    '<div id="container">読み込み中...</div>' +
+    '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>' +
+    '<script>(function(){' +
+    'var url = location.href + (location.search ? "&" : "?") + "format=json";' +
+    'fetch(url).then(function(r){return r.json();}).then(function(d){' +
+    'var c=document.getElementById("container");var h="";' +
+    'h+=\'<div class="row">\'+\'<div class="card"><h2>本日 DAU</h2><div class="metric">\'+d.dau+\'</div></div>\'+' +
+    '\'<div class="card"><h2>トライアル完走率</h2><div class="metric">\'+d.trial_completion_pct+\'%</div></div>\'+' +
+    '\'<div class="card"><h2>Pro 転換率</h2><div class="metric">\'+d.conversion_pct+\'%</div></div>\'+' +
+    '\'<div class="card"><h2>API エラー率/h</h2><div class="metric">\'+d.api_error_rate_pct+\'%</div></div>\'+' +
+    '\'</div>\';' +
+    'h+=\'<div class="card"><h2>過去 14 日の DAU</h2><canvas id="chartDau" height="120"></canvas></div>\';' +
+    'h+=\'<div class="card"><h2>過去 14 日の Pro 転換</h2><canvas id="chartConv" height="120"></canvas></div>\';' +
+    'h+=\'<div class="card"><h2>モニター枠</h2><div class="metric">\'+d.monitor_active+\' / \'+d.monitor_capacity+\'</div></div>\';' +
+    'c.innerHTML=h;' +
+    'new Chart(document.getElementById("chartDau"),{type:"line",data:{labels:d.history_dates,datasets:[{label:"DAU",data:d.history_dau,borderColor:"#1a2d45",fill:false}]}});' +
+    'new Chart(document.getElementById("chartConv"),{type:"bar",data:{labels:d.history_dates,datasets:[{label:"Pro 転換",data:d.history_conv,backgroundColor:"#d04b30"}]}});' +
+    '});})();</script></body></html>';
+  return HtmlService.createHtmlOutput(html);
+}
+
+function buildAdminDashboardJson() {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var metricsSheet = ss.getSheetByName('METRICS_DAILY');
+  var history = [];
+  if (metricsSheet) {
+    var rows = metricsSheet.getDataRange().getValues();
+    history = rows.slice(Math.max(1, rows.length - 14));
+  }
+  var historyDates = history.map(function(r){ return Utilities.formatDate(new Date(r[0]),'JST','MM/dd'); });
+  var historyDau   = history.map(function(r){ return r[1] || 0; });
+  var historyConv  = history.map(function(r){ return r[3] || 0; });
+  var today = computeMetricsToday();
+  return {
+    dau: today.dau,
+    trial_completion_pct: today.trial_completion_pct,
+    conversion_pct: today.conversion_pct,
+    api_error_rate_pct: today.api_error_rate_pct,
+    monitor_active: getActiveMonitorCount(),
+    monitor_capacity: MONITOR_CONFIG.CAPACITY,
+    history_dates: historyDates,
+    history_dau: historyDau,
+    history_conv: historyConv
+  };
+}
+
+function computeMetricsToday() {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var usersSheet = ss.getSheetByName('USERS');
+  if (!usersSheet) return { dau: 0, trial_completion_pct: 0, conversion_pct: 0, api_error_rate_pct: 0 };
+  var users = usersSheet.getDataRange().getValues();
+  var now = new Date();
+  var dayMs = 24 * 60 * 60 * 1000;
+  var dau = 0, scStarted = 0, scCompleted = 0, purchased = 0;
+  for (var i = 1; i < users.length; i++) {
+    var userId = users[i][0]; if (!userId) continue;
+    var stepSentAt   = users[i][4] ? new Date(users[i][4]) : null;
+    var registeredAt = users[i][5] ? new Date(users[i][5]) : null;
+    var scenarioId   = users[i][2];
+    var stepNum      = parseInt(users[i][3]) || 0;
+    if (stepSentAt && (now - stepSentAt) < dayMs) dau++;
+    if (registeredAt && (now - registeredAt) < (30 * dayMs)) {
+      if (scenarioId === 'SC-MAIN' || scenarioId === 'SC-PARENT' || scenarioId === 'SC-STUDENT' || scenarioId === 'SC-ADULT') {
+        scStarted++;
+        if (stepNum >= 2 || hasTag(userId, 'read_s2')) scCompleted++;
+        if (hasTag(userId, 'purchased')) purchased++;
+      }
+    }
+  }
+  return {
+    dau: dau,
+    trial_completion_pct: scStarted > 0 ? Math.round(scCompleted * 100 / scStarted) : 0,
+    conversion_pct: scCompleted > 0 ? Math.round(purchased * 100 / scCompleted) : 0,
+    api_error_rate_pct: 0
+  };
+}
+
+function snapshotDailyMetrics() {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var sheet = ss.getSheetByName('METRICS_DAILY') || ss.insertSheet('METRICS_DAILY');
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['date','dau','trial_completion_pct','conversion_pct','api_error_rate_pct','monitor_active']);
+    sheet.getRange(1,1,1,6).setBackground('#1a2d45').setFontColor('#fff').setFontWeight('bold');
+  }
+  var m = computeMetricsToday();
+  var monActive = getActiveMonitorCount();
+  sheet.appendRow([new Date(), m.dau, m.trial_completion_pct, m.conversion_pct, m.api_error_rate_pct, monActive]);
+
+  if (m.api_error_rate_pct > 5) {
+    notifyAlert('[Alert] LINE API エラー率 ' + m.api_error_rate_pct + '% (>5%)', 'all');
+  }
+  var allRows = sheet.getDataRange().getValues();
+  if (allRows.length >= 3) {
+    var yesterday = allRows[allRows.length - 2];
+    var yesterdayDau = yesterday[1] || 0;
+    if (yesterdayDau > 0 && m.dau < yesterdayDau * 0.5) {
+      notifyAlert('[Alert] DAU 前日比 -50% 超 (' + yesterdayDau + ' → ' + m.dau + ')', 'slack');
+    }
+  }
+  if (monActive >= MONITOR_CONFIG.CAPACITY - 1) {
+    notifyAlert('[Alert] モニター枠 ' + monActive + '/' + MONITOR_CONFIG.CAPACITY + ' (あと1枠)', 'slack');
+  }
+}
+
+// ----------------------------------------
+// Alert
+// ----------------------------------------
+function notifyAlert(message, channel) {
+  channel = channel || 'all';
+  if (channel === 'all' || channel === 'line') {
+    var ownerUid = getProp('OWNER_LINE_USER_ID');
+    if (ownerUid) {
+      try { sendPushMessage(ownerUid, '[sho eigo alert]\n' + message); } catch(e) { Logger.log('LINE alert failed: ' + e); }
+    }
+  }
+  if (channel === 'all' || channel === 'slack') {
+    var slackUrl = getProp('SLACK_WEBHOOK_URL');
+    if (slackUrl) {
+      try {
+        UrlFetchApp.fetch(slackUrl, {
+          method: 'post',
+          headers: { 'Content-Type': 'application/json' },
+          payload: JSON.stringify({ text: message }),
+          muteHttpExceptions: true
+        });
+      } catch(e) { Logger.log('Slack alert failed: ' + e); }
+    }
+  }
+}
+
+// ----------------------------------------
+// D-1 cron: トライアル離脱ナッジ
+// ----------------------------------------
+function nudgeTrialDropouts() {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var usersSheet = ss.getSheetByName('USERS');
+  if (!usersSheet) return;
+  var users = usersSheet.getDataRange().getValues();
+  var now = new Date();
+  var sentCount = 0;
+  for (var i = 1; i < users.length; i++) {
+    var userId = users[i][0]; if (!userId) continue;
+    var scenarioId = users[i][2];
+    var stepNum    = parseInt(users[i][3]) || 0;
+    var stepSentAt = users[i][4] ? new Date(users[i][4]) : null;
+    if (scenarioId !== 'SC-MAIN') continue;
+    if (stepNum < 2)              continue;  // step 1 (Day 2 案内) 配信済みのみ対象
+    if (!stepSentAt)              continue;
+    var hoursSince = (now - stepSentAt) / (60 * 60 * 1000);
+    if (hoursSince < 24 || hoursSince > 48) continue;
+    if (hasTag(userId, 'read_s1'))      continue;
+    if (hasTag(userId, 'nudge_sent_d1')) continue;
+    if (hasTag(userId, 'purchased') || hasTag(userId, 'deleted') || hasTag(userId, 'dormant')) continue;
+
+    var displayName = users[i][1] || '';
+    var prompt =
+      '英語学習サービスのトライアル離脱ユーザーに送る短い再起動メッセージを 1 つだけ書いてください。\n' +
+      '制約:\n' +
+      '- 100 字以内\n' +
+      '- 押し付けがましくない柔らかいトーン\n' +
+      '- 「Day 2 はこちら」リンクは別途付くので含めない\n' +
+      '- 名前は使わない\n';
+    var result = callClaudeApi(prompt, { maxTokens: 120 });
+    var nudgeText = '昨日のメッセージ、届いてますか。\nDay 2 のリンク、置いておきます。\n気が向いたタイミングでどうぞ。';
+    if (!result.error && result.text) nudgeText = result.text.trim();
+
+    sendPushMessage(userId, nudgeText + '\n\n▼ Day 2 はこちら\nhttps://sho-blog.com/all/trial/trial_day2.html');
+    addTag(userId, 'nudge_sent_d1');
+    sentCount++;
+    Utilities.sleep(500);
+    if (sentCount >= 30) break;
+  }
+  Logger.log('nudgeTrialDropouts: ' + sentCount + ' messages sent');
+  if (sentCount > 0) notifyAlert('[D-1 cron] nudge sent: ' + sentCount, 'slack');
+}
+
+// ----------------------------------------
+// Trigger setup (extend)
+// ----------------------------------------
+function setupAllTriggers() {
+  setupTrigger();  // 既存の checkAndSendScheduled (毎時)
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    var fn = t.getHandlerFunction();
+    if (fn === 'snapshotDailyMetrics' || fn === 'nudgeTrialDropouts') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('snapshotDailyMetrics').timeBased().atHour(23).nearMinute(55).everyDays(1).create();
+  ScriptApp.newTrigger('nudgeTrialDropouts')  .timeBased().atHour(21).everyDays(1).create();
+  Logger.log('全トリガー設定完了 (checkAndSendScheduled + snapshotDailyMetrics + nudgeTrialDropouts)');
 }
