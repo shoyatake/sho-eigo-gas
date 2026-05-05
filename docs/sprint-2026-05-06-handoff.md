@@ -14,7 +14,7 @@
 2. Dashboard → Developers → **API keys** で `Secret key` (本番) をコピー → `STRIPE_SECRET_KEY` として保存
 3. Products → **Add product** で 3 つ作成、価格は **JPY / 月次サブスク**:
    - 「個人 Pro」 ¥3,980/月 → Price ID をコピー (`price_xxxxx`)
-   - 「親子 Pro」 ¥6,980/月 → Price ID をコピー
+   - 「保護者プラン」 ¥6,980/月 → Price ID をコピー
    - 「法人 Pro (1 シート)」 ¥9,800/月 → Price ID をコピー
 4. Developers → **Webhooks** → Add endpoint:
    - URL: `https://script.google.com/macros/s/<GAS_DEPLOYMENT_ID>/exec?action=stripe_webhook&secret=<URL_SECRET>`
@@ -82,7 +82,7 @@ clasp deploy 後、Apps Script コンソール → **プロジェクトの設定
 | `STRIPE_SECRET_KEY` | 1.1 の `sk_live_...` (テスト中は `sk_test_...`) | ✓ |
 | `STRIPE_WEBHOOK_URL_SECRET` | 1.1 の URL secret | ✓ |
 | `STRIPE_PRICE_PERSONAL` | 1.1 の個人 Pro Price ID | ✓ |
-| `STRIPE_PRICE_FAMILY` | 1.1 の親子 Pro Price ID | ✓ |
+| `STRIPE_PRICE_FAMILY` | 1.1 の保護者プラン Price ID | ✓ |
 | `STRIPE_PRICE_CORP` | 1.1 の法人 Pro Price ID | ✓ |
 | `ANTHROPIC_API_KEY` | 1.2 の `sk-ant-api03-...` | ✓ |
 | `ADMIN_TOKEN` | 自分しか知らない 32 字以上のランダム文字列 | ✓ |
@@ -165,7 +165,7 @@ function _readiness() {
   checkProductionReadiness();
 }
 
-// 親子 Pro の週次レポート手動実行
+// 保護者プラン の週次レポート手動実行
 function _testParentReport() {
   weeklyParentReport();
 }

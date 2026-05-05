@@ -425,7 +425,7 @@ const SCENARIOS_DATA = {
     { stepNum: 4, delayDays: 2, sendHour: 19, trackingTag: 'read_s4', markAiWritingPending: true,
       message: '今日は AI 添削を 1 行だけ試してみませんか。\n\nお題:「昨日は雨でした」\n\nこの文を英語 1 行にして、このトークに送ってください。\n（200 字以内 / 日本語訳は不要）\n\nsho の AI が改善文と 1 つだけのコツを返します。' },
     { stepNum: 5, delayDays: 2, sendHour: 8, trackingTag: 'read_s5', sendPlanSelect: true,
-      message: 'ここまで体験してみていかがでしたか。\n\n続けてみたい場合、Pro プランをご用意しています。\n\n・個人 Pro 3,980円/月\n・親子 Pro 6,980円/月\n・法人 Pro はご相談\n\nいつでも 1 クリック解約できます。\nどのプランで進めますか？' }
+      message: 'ここまで体験してみていかがでしたか。\n\n続けてみたい場合、プランをご用意しています。\n\n・個人 Pro 3,980円/月\n・保護者プラン 6,980円/月\n  （音声学習は、思い出になる。週次レポートと音声ログ保管付き）\n・法人 Pro はご相談\n\nいつでも 1 クリック解約できます。\nどのプランで進めますか？' }
   ],
   'SC-PARENT': [
     { stepNum: 0, delayDays: 0, sendHour: 8, trackingTag: 'read_p1',
@@ -884,7 +884,7 @@ function getMonitorReport() {
 
 const PRO_PLANS = {
   personal: { price_jpy: 3980, ai_writing_quota: 20, label: '個人 Pro',           stripe_price_id_prop: 'STRIPE_PRICE_PERSONAL' },
-  family:   { price_jpy: 6980, ai_writing_quota: 40, label: '親子 Pro',           stripe_price_id_prop: 'STRIPE_PRICE_FAMILY'   },
+  family:   { price_jpy: 6980, ai_writing_quota: 40, label: '保護者プラン',        stripe_price_id_prop: 'STRIPE_PRICE_FAMILY'   },
   corp:     { price_jpy: 9800, ai_writing_quota: 0,  label: '法人 Pro (1 シート)', stripe_price_id_prop: 'STRIPE_PRICE_CORP'     }
 };
 
@@ -930,6 +930,9 @@ function createCheckoutSession(userId, plan) {
     'line_items[0][quantity]': 1,
     'metadata[lineUserId]': userId,
     'metadata[plan]': plan,
+    // subscription にも metadata を引き継ぐ (subscription.deleted 等で使う)
+    'subscription_data[metadata][lineUserId]': userId,
+    'subscription_data[metadata][plan]': plan,
     'allow_promotion_codes': 'true'
   };
   var formData = Object.keys(payload).map(function(k){
@@ -1116,12 +1119,12 @@ function sendPlanSelectButtons(userId) {
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
     payload: JSON.stringify({
       to: userId,
-      messages: [{ type: 'template', altText: 'Pro プランを選ぶ', template: {
+      messages: [{ type: 'template', altText: 'プランを選ぶ', template: {
         type: 'buttons', text: 'どのプランで進めますか？',
         actions: [
-          { type: 'postback', label: '個人 Pro 3,980円/月',     data: 'plan_personal' },
-          { type: 'postback', label: '親子 Pro 6,980円/月',     data: 'plan_family'   },
-          { type: 'postback', label: '法人 Pro 相談',            data: 'plan_corp'     }
+          { type: 'postback', label: '個人 Pro 3,980円/月',         data: 'plan_personal' },
+          { type: 'postback', label: '保護者プラン 6,980円/月',     data: 'plan_family'   },
+          { type: 'postback', label: '法人 Pro 相談',                data: 'plan_corp'     }
         ]
       }}]
     }),
@@ -1138,16 +1141,20 @@ function handlePlanSelected(event, plan) {
   var result = createCheckoutSession(userId, plan);
   if (result.error || !result.url) {
     if (result.error === 'not_allowed_yet') {
-      replyMessage(event.replyToken, 'Pro プランは現在、本番テスト中です。\n明日以降にもう一度お試しください。');
+      replyMessage(event.replyToken, 'プランは現在、本番テスト中です。\n明日以降にもう一度お試しください。');
     } else if (result.error === 'stripe_not_configured' || result.error === 'price_id_missing') {
-      replyMessage(event.replyToken, 'Pro プランの準備中です。\n少しお待ちください。');
+      replyMessage(event.replyToken, 'プランの準備中です。\n少しお待ちください。');
     } else {
       replyMessage(event.replyToken, '決済画面の準備中にエラーが発生しました。\nしばらく経ってからお試しください。');
     }
     Logger.log('handlePlanSelected error: ' + JSON.stringify(result));
     return;
   }
-  replyMessage(event.replyToken, '下記から決済を完了してください。\n（解約はいつでもお客様ポータルから可能）\n\n' + result.url);
+  var prefix = '';
+  if (plan === 'family') {
+    prefix = '保護者プラン: 音声学習は、思い出になる。\n週次レポート + 音声ログ保管付き。\n\n';
+  }
+  replyMessage(event.replyToken, prefix + '下記から決済を完了してください。\n（解約はいつでもお客様ポータルから可能）\n\n' + result.url);
 }
 
 // ----------------------------------------
@@ -1430,7 +1437,8 @@ function nudgeTrialDropouts() {
 }
 
 // ----------------------------------------
-// 週次保護者レポート (親子 Pro の差別化機能, 毎週日曜 9:00)
+// 週次保護者レポート (保護者プランの差別化機能, 毎週日曜 9:00)
+// テーマ: 「音声学習は、思い出になる」
 // ----------------------------------------
 function weeklyParentReport() {
   var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
@@ -1476,33 +1484,33 @@ function weeklyParentReport() {
     var aiCount = fbByUser[userId] || 0;
     var displayName = users[k][1] || '保護者';
 
-    // 簡易レポートメッセージ。Claude で温度ある文章にする。
+    // 「音声学習は、思い出になる」テーマで保護者向けレポートを生成
     var prompt =
-      'sho eigo の親子 Pro を契約している ' + displayName + ' さん向けに、過去 7 日間の学習サマリを書いてください。\n' +
+      'sho eigo の「保護者プラン」を契約している ' + displayName + ' さん向けに、過去 7 日間の振り返りメッセージを書いてください。\n\n' +
+      'コンセプト: 「音声学習は、思い出になる」\n' +
+      '英語の上達を測るレポートではなく、お子さんがその週に英語に向き合った時間を、後から振り返れる「ことば」として残すのが目的。\n\n' +
       '事実:\n' +
-      '- リンククリック数: ' + clicks + '\n' +
-      '- AI 添削 利用回数: ' + aiCount + '\n' +
-      '\n' +
-      '形式 (250 字以内、日本語):\n' +
-      '今週のサマリ\n' +
-      '✅ 数字 1〜2 個を読みやすく\n' +
-      '💡 来週に向けた 1 つだけのおすすめ\n' +
-      '\n' +
-      '保護者目線で、温かく、押し付けず。「お子さん」という言い方を使ってください。';
+      '- 配信教材へのアクセス: ' + clicks + ' 回\n' +
+      '- AI 添削 (英作文 1 行): ' + aiCount + ' 回\n\n' +
+      '形式 (300 字以内、日本語、保護者目線):\n' +
+      '・最初の 1 行: 今週を一言で表すフレーズ (例:「今週、お子さんは○○な週でした」)\n' +
+      '・中盤: 数字を 1〜2 個、自然に織り込む。事実だけでなく「その時間に何があったか」を想像できる温度感で。\n' +
+      '・最後: 1 文だけ、来週も並走する保護者へのねぎらい。\n\n' +
+      '禁則: 「上達」「成長」のような評価語は控えめに。代わりに「向き合った」「触れた」「重ねた」を使う。\n' +
+      '「お子さん」という呼び方で。';
 
-    var result = callClaudeApi(prompt, { maxTokens: 350 });
+    var result = callClaudeApi(prompt, { maxTokens: 500 });
     var reportText;
     if (result.error || !result.text) {
       reportText =
-        '【今週のサマリ】\n\n' +
-        '今週のリンクタップ: ' + clicks + ' 回\n' +
-        'AI 添削 利用: ' + aiCount + ' 回\n\n' +
-        '✅ 続けることが力になります。来週もお子さんの応援、よろしくお願いします。';
+        '今週、お子さんは英語に ' + clicks + ' 回触れて、AI 添削を ' + aiCount + ' 回やりました。\n\n' +
+        '一回一回が、後から振り返れる時間になります。\n' +
+        '来週も並走、よろしくお願いします。';
     } else {
       reportText = result.text.trim();
     }
 
-    sendPushMessage(userId, '【親子 Pro 週次レポート】\n' + Utilities.formatDate(new Date(), 'JST', 'yyyy/MM/dd') + '\n\n' + reportText);
+    sendPushMessage(userId, '【保護者プラン 週次レポート】\n' + Utilities.formatDate(new Date(), 'JST', 'yyyy/MM/dd') + '\n音声学習は、思い出になる。\n\n' + reportText);
     sentCount++;
     Utilities.sleep(500);
     if (sentCount >= 50) break;  // 1 回の cron で最大 50 通

@@ -9,7 +9,7 @@
     {"bounds":{"x":1250,"y":0,"width":625,"height":421},
      "action":{"type":"uri","label":"コース一覧","uri":"https://sho-blog.com/products/"}},
     {"bounds":{"x":1875,"y":0,"width":625,"height":421},
-     "action":{"type":"uri","label":"伴走コース","uri":"https://sho-blog.com/payment/?plan=family"}},
+     "action":{"type":"uri","label":"保護者プラン","uri":"https://sho-blog.com/payment/?plan=family"}},
     {"bounds":{"x":1250,"y":421,"width":625,"height":422},
      "action":{"type":"uri","label":"プラン選択","uri":"https://sho-blog.com/payment/"}},
     {"bounds":{"x":1875,"y":421,"width":625,"height":422},

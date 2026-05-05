@@ -48,16 +48,18 @@
     </div>
 
     <div class="card" data-plan="family">
-      <span class="tag">親子</span>
-      <h3>親子 Pro</h3>
+      <span class="tag">保護者</span>
+      <h3>保護者プラン</h3>
       <p class="muted small">対象：小学生〜中学生のお子さんを持つ保護者</p>
+      <p style="font-weight:600;">音声学習は、思い出になる。</p>
       <ul class="small">
         <li>個人 Pro の全機能</li>
-        <li>毎週日曜「学習レポート」</li>
+        <li>毎週日曜の保護者レポート（成長と気づき）</li>
         <li>AI 添削（英作文 1 行 / 月 40 回）</li>
+        <li>音声学習ログ保管 / 思い出アーカイブ</li>
       </ul>
       <div class="kv"><span class="k">料金</span><span class="v">¥6,980 / 月</span></div>
-      <div style="margin-top:14px;"><a id="cta-family" class="btn block" href="#">Pro に進む</a></div>
+      <div style="margin-top:14px;"><a id="cta-family" class="btn block" href="#">保護者プランに進む</a></div>
     </div>
 
     <div class="card" data-plan="corp">
@@ -116,7 +118,7 @@
   }
 
   function buildLineDeepLink(p) {
-    var label = ({personal:'個人Pro', family:'親子Pro', corp:'法人Pro'})[p] || 'Pro';
+    var label = ({personal:'個人Pro', family:'保護者プラン', corp:'法人Pro'})[p] || 'Pro';
     return 'https://line.me/R/oaMessage/@YOUR_LINE_ID/?' + encodeURIComponent(label);
   }
 
@@ -131,7 +133,7 @@
       el.textContent = 'LINE で問い合わせる';
     } else if (uid) {
       el.href = buildCheckoutUrl(p);
-      el.textContent = 'Pro に進む (Stripe)';
+      el.textContent = (p === 'family') ? '保護者プランに進む (Stripe)' : 'Pro に進む (Stripe)';
     } else {
       el.href = buildLineDeepLink(p);
       el.textContent = 'LINE で続ける';
