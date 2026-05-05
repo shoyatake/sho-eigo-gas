@@ -86,6 +86,9 @@ jobs:
                    https://sho-blog.com/monitor/ \
                    https://sho-blog.com/monitor/dashboard.html \
                    https://sho-blog.com/monitor/parent/dashboard.html \
+                   https://sho-blog.com/payment/ \
+                   https://sho-blog.com/payment/success.html \
+                   https://sho-blog.com/payment/cancel.html \
                    https://sho-blog.com/assets/style.css ; do
             printf "%s -> " "$u"
             curl -sI "$u" | head -1 || true
