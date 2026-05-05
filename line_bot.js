@@ -89,6 +89,24 @@ function doGet(e) {
     }
     return buildAdminDashboardHtml();
   }
+  // Stripe Customer Portal (解約・カード変更)
+  if (e && e.parameter && e.parameter.action === 'portal') {
+    var puid = e.parameter.uid || '';
+    if (!puid) {
+      return HtmlService.createHtmlOutput('<h1>uid が必要です</h1><p>LINE Bot のメッセージから「解約」とお送りください。</p>');
+    }
+    var pres = createPortalSession(puid);
+    if (pres && pres.url) {
+      return HtmlService.createHtmlOutput(
+        '<script>window.location.replace("' + pres.url.replace(/"/g, '&quot;') + '")</script>'
+      );
+    }
+    var pmsg = (pres && pres.error === 'customer_not_found') ?
+      'お客様情報が見つかりませんでした。LINE で「解約」とお送りください。' :
+      'お客様ポータルの準備中にエラーが発生しました。';
+    return HtmlService.createHtmlOutput('<h1>準備中</h1><p>' + pmsg + '</p>');
+  }
+
   // Stripe Checkout 起動 (pages/payment/index.html から飛んでくる)
   if (e && e.parameter && e.parameter.action === 'checkout') {
     var plan = e.parameter.plan || '';
@@ -171,6 +189,17 @@ function handleMessage(event) {
     if (hasTag(userId, 'mon_active') || hasTag(userId, 'mon_completed')) {
       addTag(userId, 'mon_feedback_pending');
       replyMessage(event.replyToken, '次のメッセージをフィードバックとして記録します。\n何でも自由に書いてください。');
+      return;
+    }
+  }
+
+  // 解約 / キャンセル: Stripe Customer Portal に誘導 (Pro ユーザーのみ)
+  if (text.indexOf('解約') !== -1 || text.indexOf('キャンセル') !== -1 || text.toLowerCase() === 'cancel') {
+    if (hasTag(userId, 'purchased')) {
+      var portalUrl = (CONFIG.GAS_URL && CONFIG.GAS_URL.indexOf('http') === 0)
+        ? CONFIG.GAS_URL + '?action=portal&uid=' + encodeURIComponent(userId)
+        : 'https://sho-blog.com/payment/';
+      replyMessage(event.replyToken, '解約・カード情報の変更は下記のお客様ポータルから行えます。\n\n' + portalUrl);
       return;
     }
   }
@@ -989,12 +1018,78 @@ function handleStripeWebhook(rawBody) {
     }
   } else if (event.type === 'customer.subscription.deleted') {
     var sub = event.data && event.data.object;
-    if (sub && sub.metadata && sub.metadata.lineUserId) {
-      removeTag(sub.metadata.lineUserId, 'purchased');
-      notifyAlert('[Pro] 解約 uid=' + sub.metadata.lineUserId.substr(0, 10) + '...', 'slack');
+    if (sub && sub.id) {
+      var verifiedSub = reverifyStripeObject('subscription', sub.id);
+      if (verifiedSub && verifiedSub.metadata && verifiedSub.metadata.lineUserId) {
+        var uid = verifiedSub.metadata.lineUserId;
+        removeTag(uid, 'purchased');
+        ['personal','family','corp'].forEach(function(p){ removeTag(uid, 'purchased_plan_' + p); });
+        notifyAlert('[Pro] 解約 uid=' + uid.substr(0, 10) + '...', 'slack');
+      }
+    }
+  } else if (event.type === 'charge.refunded' || event.type === 'invoice.payment_failed') {
+    // 返金 or 支払い失敗時は Pro タグを剥がす (defensive)
+    var obj = event.data && event.data.object;
+    var customerId = obj && obj.customer;
+    if (customerId) {
+      var uid2 = findLineUidByStripeCustomer(customerId);
+      if (uid2) {
+        removeTag(uid2, 'purchased');
+        ['personal','family','corp'].forEach(function(p){ removeTag(uid2, 'purchased_plan_' + p); });
+        notifyAlert('[Pro] ' + event.type + ' → 解約処理 uid=' + uid2.substr(0, 10) + '...', 'all');
+      } else {
+        notifyAlert('[Pro] ' + event.type + ' customer=' + customerId + ' に紐づく LINE uid 不明', 'all');
+      }
     }
   }
   return { ok: true };
+}
+
+// PURCHASES シートから Stripe customer_id → LINE userId を逆引き
+function findLineUidByStripeCustomer(customerId) {
+  if (!customerId) return null;
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var sheet = ss.getSheetByName('PURCHASES');
+  if (!sheet) return null;
+  var data = sheet.getDataRange().getValues();
+  for (var i = data.length - 1; i >= 1; i--) {
+    if (data[i][3] === customerId) return data[i][0];
+  }
+  return null;
+}
+
+// Customer Portal セッション発行 (解約・カード変更を Stripe 上で完結させる)
+function createPortalSession(userId) {
+  if (!userId) return { error: 'missing_uid' };
+  var key = getProp('STRIPE_SECRET_KEY');
+  if (!key) return { error: 'stripe_not_configured' };
+  // PURCHASES から最新の customer_id を取得
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var sheet = ss.getSheetByName('PURCHASES');
+  if (!sheet) return { error: 'no_purchase_record' };
+  var data = sheet.getDataRange().getValues();
+  var customerId = '';
+  for (var i = data.length - 1; i >= 1; i--) {
+    if (data[i][0] === userId && data[i][3]) { customerId = data[i][3]; break; }
+  }
+  if (!customerId) return { error: 'customer_not_found' };
+
+  var payload = 'customer=' + encodeURIComponent(customerId) +
+                '&return_url=' + encodeURIComponent('https://sho-blog.com/payment/');
+  var resp = UrlFetchApp.fetch('https://api.stripe.com/v1/billing_portal/sessions', {
+    method: 'post',
+    headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/x-www-form-urlencoded' },
+    payload: payload,
+    muteHttpExceptions: true
+  });
+  if (resp.getResponseCode() !== 200) {
+    Logger.log('Stripe portal create failed: ' + resp.getResponseCode() + ' ' + resp.getContentText().substr(0, 300));
+    return { error: 'stripe_api_error' };
+  }
+  try {
+    var body = JSON.parse(resp.getContentText());
+    return { url: body.url };
+  } catch(e) { return { error: 'parse_error' }; }
 }
 
 function logCheckoutSuccess(session) {

@@ -115,14 +115,26 @@
       + (uid ? '&uid=' + encodeURIComponent(uid) : '');
   }
 
+  function buildLineDeepLink(p) {
+    var label = ({personal:'個人Pro', family:'親子Pro', corp:'法人Pro'})[p] || 'Pro';
+    return 'https://line.me/R/oaMessage/@YOUR_LINE_ID/?' + encodeURIComponent(label);
+  }
+
   // 各 CTA に Stripe Checkout 遷移リンクを設定
+  // uid がある場合 (LINE Bot 経由): 直接 Stripe Checkout に飛ぶ
+  // uid が無い場合 (直アクセス): LINE Bot にメッセージを送ってもらう
   ['personal', 'family', 'corp'].forEach(function(p) {
     var el = document.getElementById('cta-' + p);
     if (!el) return;
     if (p === 'corp') {
       el.href = 'https://line.me/R/oaMessage/@YOUR_LINE_ID/?法人Pro問い合わせ';
-    } else {
+      el.textContent = 'LINE で問い合わせる';
+    } else if (uid) {
       el.href = buildCheckoutUrl(p);
+      el.textContent = 'Pro に進む (Stripe)';
+    } else {
+      el.href = buildLineDeepLink(p);
+      el.textContent = 'LINE で続ける';
     }
   });
 

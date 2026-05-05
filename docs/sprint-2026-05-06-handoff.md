@@ -113,6 +113,16 @@ clasp deploy 後、Apps Script コンソール → **プロジェクトの設定
 
 ---
 
+## 4.1 Customer Portal & 解約フロー
+
+- **解約**: ユーザーが LINE で「解約」「キャンセル」と送信すると、`createPortalSession` が PURCHASES シートから Stripe customer_id を逆引きして Billing Portal URL を生成、案内する。
+- **Refund**: Stripe Dashboard で返金を実行すると、`charge.refunded` Webhook が飛び、自動で `purchased` タグが剥がされる。
+- **支払い失敗**: `invoice.payment_failed` Webhook で同様にタグ剥がし + 運営者に通知。
+- **解約 (subscription.deleted)**: タグ剥がし + Slack 通知。
+- 上記 Webhook イベントを Stripe Dashboard の Webhook 設定で必ず有効化する: `checkout.session.completed`, `customer.subscription.deleted`, `charge.refunded`, `invoice.payment_failed`。
+
+---
+
 ## 5. テストコマンド集
 
 ### 5.1 GAS doGet 単体テスト (curl)
@@ -175,6 +185,20 @@ function _testNudge() {
 function _testAlert() {
   notifyAlert('[テスト] アラート動作確認 ' + new Date(), 'all');
 }
+```
+
+### 5.2.1 Cloud Shell から e2e 検証 (deploy 後に必須)
+
+```bash
+cd ~/sho-eigo-gas
+git pull origin main
+
+export GAS_URL='https://script.google.com/macros/s/<GAS_DEPLOYMENT_ID>/exec'
+export ADMIN_TOKEN='<your_admin_token>'
+export TEST_LINE_UID='U<your_line_uid>'
+
+bash scripts/test_endpoints.sh
+# 全 PASS で OK。FAIL がある場合は handoff §6 のロールバック判断材料に。
 ```
 
 ### 5.3 SNS proposal のローカル試走
