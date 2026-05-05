@@ -1430,15 +1430,138 @@ function nudgeTrialDropouts() {
 }
 
 // ----------------------------------------
+// 週次保護者レポート (親子 Pro の差別化機能, 毎週日曜 9:00)
+// ----------------------------------------
+function weeklyParentReport() {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var usersSheet = ss.getSheetByName('USERS');
+  if (!usersSheet) return;
+  var users = usersSheet.getDataRange().getValues();
+  var sevenDayMs = 7 * 24 * 60 * 60 * 1000;
+  var since = new Date(Date.now() - sevenDayMs);
+
+  // 過去 7 日の click / ai_writing を一旦 in-memory に集約
+  var clickByUser = {};
+  var clickSheet = ss.getSheetByName('CLICK_LOG');
+  if (clickSheet) {
+    var rows = clickSheet.getDataRange().getValues();
+    for (var i = 1; i < rows.length; i++) {
+      var at = rows[i][3] ? new Date(rows[i][3]) : null;
+      if (!at || at < since) continue;
+      var uid = rows[i][0];
+      clickByUser[uid] = (clickByUser[uid] || 0) + 1;
+    }
+  }
+
+  var fbByUser = {};
+  var fbSheet = ss.getSheetByName('FEEDBACK_LOG');
+  if (fbSheet) {
+    var fbRows = fbSheet.getDataRange().getValues();
+    for (var j = 1; j < fbRows.length; j++) {
+      var fAt = fbRows[j][3] ? new Date(fbRows[j][3]) : null;
+      if (!fAt || fAt < since) continue;
+      if (fbRows[j][1] !== 'ai_writing') continue;
+      var fUid = fbRows[j][0];
+      fbByUser[fUid] = (fbByUser[fUid] || 0) + 1;
+    }
+  }
+
+  var sentCount = 0;
+  for (var k = 1; k < users.length; k++) {
+    var userId = users[k][0]; if (!userId) continue;
+    if (!hasTag(userId, 'purchased_plan_family')) continue;
+    if (hasTag(userId, 'deleted')) continue;
+
+    var clicks = clickByUser[userId] || 0;
+    var aiCount = fbByUser[userId] || 0;
+    var displayName = users[k][1] || '保護者';
+
+    // 簡易レポートメッセージ。Claude で温度ある文章にする。
+    var prompt =
+      'sho eigo の親子 Pro を契約している ' + displayName + ' さん向けに、過去 7 日間の学習サマリを書いてください。\n' +
+      '事実:\n' +
+      '- リンククリック数: ' + clicks + '\n' +
+      '- AI 添削 利用回数: ' + aiCount + '\n' +
+      '\n' +
+      '形式 (250 字以内、日本語):\n' +
+      '今週のサマリ\n' +
+      '✅ 数字 1〜2 個を読みやすく\n' +
+      '💡 来週に向けた 1 つだけのおすすめ\n' +
+      '\n' +
+      '保護者目線で、温かく、押し付けず。「お子さん」という言い方を使ってください。';
+
+    var result = callClaudeApi(prompt, { maxTokens: 350 });
+    var reportText;
+    if (result.error || !result.text) {
+      reportText =
+        '【今週のサマリ】\n\n' +
+        '今週のリンクタップ: ' + clicks + ' 回\n' +
+        'AI 添削 利用: ' + aiCount + ' 回\n\n' +
+        '✅ 続けることが力になります。来週もお子さんの応援、よろしくお願いします。';
+    } else {
+      reportText = result.text.trim();
+    }
+
+    sendPushMessage(userId, '【親子 Pro 週次レポート】\n' + Utilities.formatDate(new Date(), 'JST', 'yyyy/MM/dd') + '\n\n' + reportText);
+    sentCount++;
+    Utilities.sleep(500);
+    if (sentCount >= 50) break;  // 1 回の cron で最大 50 通
+  }
+  Logger.log('weeklyParentReport: ' + sentCount + ' reports sent');
+  if (sentCount > 0) notifyAlert('[週次レポート] ' + sentCount + ' 件送信', 'slack');
+}
+
+// ----------------------------------------
 // Trigger setup (extend)
 // ----------------------------------------
 function setupAllTriggers() {
   setupTrigger();  // 既存の checkAndSendScheduled (毎時)
   ScriptApp.getProjectTriggers().forEach(function(t) {
     var fn = t.getHandlerFunction();
-    if (fn === 'snapshotDailyMetrics' || fn === 'nudgeTrialDropouts') ScriptApp.deleteTrigger(t);
+    if (fn === 'snapshotDailyMetrics' || fn === 'nudgeTrialDropouts' || fn === 'weeklyParentReport') ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger('snapshotDailyMetrics').timeBased().atHour(23).nearMinute(55).everyDays(1).create();
   ScriptApp.newTrigger('nudgeTrialDropouts')  .timeBased().atHour(21).everyDays(1).create();
-  Logger.log('全トリガー設定完了 (checkAndSendScheduled + snapshotDailyMetrics + nudgeTrialDropouts)');
+  ScriptApp.newTrigger('weeklyParentReport')  .timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(9).create();
+  Logger.log('全トリガー設定完了 (checkAndSendScheduled + snapshotDailyMetrics + nudgeTrialDropouts + weeklyParentReport)');
+}
+
+// ----------------------------------------
+// 1 回だけ実行する初期セットアップ helper
+// ----------------------------------------
+// Apps Script Editor で実行すると、必要な Sheets と全 trigger を一括で用意する。
+// Script Properties は手動で UI から設定すること (このスクリプトには値を持たない)。
+function setupEverything() {
+  setupSheets();
+  setupAllTriggers();
+  Logger.log('Setup complete. 残りは Script Properties (Stripe / Anthropic / Slack / ADMIN_TOKEN) を手動で設定してください。');
+  Logger.log('必須プロパティ一覧: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_URL_SECRET, STRIPE_PRICE_PERSONAL, STRIPE_PRICE_FAMILY, STRIPE_PRICE_CORP, ANTHROPIC_API_KEY, ADMIN_TOKEN');
+  Logger.log('推奨プロパティ: SLACK_WEBHOOK_URL, OWNER_LINE_USER_ID, LINE_RICHMENU_PRO_ID, ALLOWED_TEST_UIDS, LIVE_OPEN_AFTER');
+}
+
+// 全プロパティ設定状況をまとめてチェックする (本番リリース前のヘルスチェック)
+function checkProductionReadiness() {
+  var required = ['STRIPE_SECRET_KEY','STRIPE_WEBHOOK_URL_SECRET','STRIPE_PRICE_PERSONAL','STRIPE_PRICE_FAMILY','STRIPE_PRICE_CORP','ANTHROPIC_API_KEY','ADMIN_TOKEN'];
+  var recommended = ['SLACK_WEBHOOK_URL','OWNER_LINE_USER_ID','LINE_RICHMENU_PRO_ID','ALLOWED_TEST_UIDS','LIVE_OPEN_AFTER'];
+  var props = PropertiesService.getScriptProperties();
+  var missingRequired = [];
+  var missingRecommended = [];
+  required.forEach(function(k){ if (!props.getProperty(k)) missingRequired.push(k); });
+  recommended.forEach(function(k){ if (!props.getProperty(k)) missingRecommended.push(k); });
+
+  var triggers = ScriptApp.getProjectTriggers();
+  var triggerNames = triggers.map(function(t){ return t.getHandlerFunction(); });
+  var requiredTriggers = ['checkAndSendScheduled','snapshotDailyMetrics','nudgeTrialDropouts','weeklyParentReport'];
+  var missingTriggers = requiredTriggers.filter(function(t){ return triggerNames.indexOf(t) === -1; });
+
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var requiredSheets = ['USERS','TAGS','CLICK_LOG','SURVEY_LOG','FEEDBACK_LOG','MONITORS'];
+  var missingSheets = requiredSheets.filter(function(s){ return !ss.getSheetByName(s); });
+
+  Logger.log('=== Production Readiness Check ===');
+  Logger.log('Missing required properties: ' + (missingRequired.length === 0 ? 'NONE' : missingRequired.join(', ')));
+  Logger.log('Missing recommended properties: ' + (missingRecommended.length === 0 ? 'NONE' : missingRecommended.join(', ')));
+  Logger.log('Missing triggers: ' + (missingTriggers.length === 0 ? 'NONE' : missingTriggers.join(', ')));
+  Logger.log('Missing sheets: ' + (missingSheets.length === 0 ? 'NONE' : missingSheets.join(', ')));
+  Logger.log('Ready: ' + (missingRequired.length === 0 && missingTriggers.length === 0 && missingSheets.length === 0 ? 'YES ✅' : 'NO ❌'));
 }

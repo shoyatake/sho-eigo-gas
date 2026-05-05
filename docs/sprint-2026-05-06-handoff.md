@@ -106,7 +106,7 @@ clasp deploy 後、Apps Script コンソール → **プロジェクトの設定
 | 13:00 | A. 本番テスト | Script Properties の SECRET を `sk_live_...` に戻す → 自分の LINE で 1 件決済 (実カード) → Stripe Dashboard で確認 → 後で全額返金 |
 | 14:00 | C. AI 添削テスト | Script Properties の `ANTHROPIC_API_KEY` 設定済 → 自分宛に SC-MAIN step 4 を強制配信 (`sendStepNow(uid, 'SC-MAIN', 4)` を Apps Script Editor から実行) → 英文 1 行送信 → 5 秒以内に添削が返る |
 | 16:30 | B. ダッシュボード | https://sho-blog.com/admin/ にアクセス → ADMIN_TOKEN 入力 → 数値表示確認。SLACK_WEBHOOK_URL を一時的に閾値ギリギリにして手動 `snapshotDailyMetrics()` 実行 → Slack 通知到達 |
-| 18:00 | D-1 cron 設置 | Apps Script Editor で `setupAllTriggers()` を 1 回実行 → トリガー一覧に nudgeTrialDropouts (毎日 21:00) と snapshotDailyMetrics (毎日 23:55) が追加される。テスト用 LINE で `nudgeTrialDropouts()` を手動実行 → 1 件届くか確認 |
+| 18:00 | D-1 cron + 親レポート設置 | Apps Script Editor で `setupEverything()` を 1 回実行 → Sheets 6 種 + 全 trigger (`checkAndSendScheduled` 毎時, `snapshotDailyMetrics` 23:55, `nudgeTrialDropouts` 21:00, `weeklyParentReport` 日曜 9:00) を一括登録。`nudgeTrialDropouts()` と `weeklyParentReport()` を手動実行 → 各 1 件届く（or 対象なしのログ）|
 | 20:00 | D-2 cron 設置 | GitHub → Actions → SNS Proposal (weekly) → **Run workflow** で `dry_run: true` 実行 → ログで Claude が JSON を返すか確認 → `dry_run: false` で実走 → Notion に 3 行 + LINE 通知到達 |
 | 21:00 | リリース確認 | Stripe Dashboard, Apps Script ログ, Slack, Notion に異常無し |
 | 21:30 | 完了 | 当日返金分は Stripe で `Refund` 実行 (テスト課金用) |
@@ -155,10 +155,19 @@ function _testCheckout() {
   Logger.log(createCheckoutSession('U1234567890abcdef', 'personal'));
 }
 
-// 全トリガー設定 (1 回だけ実行すれば 24/7 自律稼働)
+// 全トリガー設定 (1 回だけ実行すれば 24/7 自律稼働) — 推奨ワンショット関数
 function _setupAll() {
-  setupSheets();
-  setupAllTriggers();
+  setupEverything();  // Sheets + 全 trigger を一括
+}
+
+// 本番リリース前のヘルスチェック (Properties / triggers / sheets が揃ってるか)
+function _readiness() {
+  checkProductionReadiness();
+}
+
+// 親子 Pro の週次レポート手動実行
+function _testParentReport() {
+  weeklyParentReport();
 }
 
 // ダッシュボード値の手動計算
@@ -294,6 +303,7 @@ git push --force-with-lease origin main
 - [ ] `_testNudge` 手動実行 → テスト LINE で受信 (24h 経過した離脱者 が居れば)
 - [ ] Slack に手動アラート通知が 1 件届いている
 - [ ] GitHub Actions → SNS Proposal `dry_run: false` 成功 → Notion に 3 案 + LINE 通知
-- [ ] Apps Script トリガー一覧に `nudgeTrialDropouts` (21:00) と `snapshotDailyMetrics` (23:55) が登録済
+- [ ] Apps Script トリガー一覧に `nudgeTrialDropouts` (21:00) / `snapshotDailyMetrics` (23:55) / `weeklyParentReport` (日曜 9:00) が登録済
+- [ ] `_readiness()` 実行で `Ready: YES ✅` 表示
 
 完了したら `pre-pro-2026-05-06` タグは保持したまま、新しい安定タグ `v-prod-2026-05-06` を打って締める。
