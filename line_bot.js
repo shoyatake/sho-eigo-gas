@@ -196,6 +196,16 @@ function handleMessage(event) {
     return;
   }
 
+  // UI/UX カスタマイズ相談 (保護者プラン契約者向け、人手で受ける)
+  if (text.indexOf('カスタマイズ') !== -1) {
+    var planTag = hasTag(userId, 'purchased_plan_parent') ? '保護者プラン契約者' :
+                  hasTag(userId, 'purchased') ? 'L プラン契約者' : '体験中';
+    addTag(userId, 'customize_request');
+    replyMessage(event.replyToken,
+      'カスタマイズのご相談ありがとうございます。\n\n専任アドバイザー (sho) が承りました。\n以下を簡単に教えていただけますか:\n\n1. お子さんの学年 (例: 小4)\n2. 一番気になっている英語の困りごと\n3. レポート / アルバムで「もっとこうしたい」点があれば\n\n3 営業日以内にご提案を返信します。');
+    return;
+  }
+
   const keywords = {
     '体験':  '▼ 2日間無料体験はこちら\nhttps://sho-blog.com/trial/day1.html',
     'day1':  '▼ 体験Day 1\nhttps://sho-blog.com/trial/day1.html',
