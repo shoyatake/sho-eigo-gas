@@ -109,7 +109,7 @@ clasp deploy 後、Apps Script コンソール → **プロジェクトの設定
 | 18:00 | D-1 cron + 親レポート設置 | Apps Script Editor で `setupEverything()` を 1 回実行 → Sheets 6 種 + 全 trigger (`checkAndSendScheduled` 毎時, `snapshotDailyMetrics` 23:55, `nudgeTrialDropouts` 21:00, `weeklyParentReport` 日曜 9:00) を一括登録。`nudgeTrialDropouts()` と `weeklyParentReport()` を手動実行 → 各 1 件届く（or 対象なしのログ）|
 | 20:00 | D-2 cron 設置 | GitHub → Actions → SNS Proposal (weekly) → **Run workflow** で `dry_run: true` 実行 → ログで Claude が JSON を返すか確認 → `dry_run: false` で実走 → Notion に 3 行 + LINE 通知到達 |
 | 21:00 | リリース確認 | Stripe Dashboard, Apps Script ログ, Slack, Notion に異常無し |
-| 21:30 | 完了 | 当日返金分は Stripe で `Refund` 実行 (テスト課金用) |
+| 21:30 | 完了 | 当日返金分は Stripe で `Refund` 実行 (テスト課金用)。`_goLiveNow()` を実行して `ALLOWED_TEST_UIDS` ガードを解除 → 一般ユーザー解放 |
 
 ---
 
@@ -183,6 +183,25 @@ function _testShareText() {
 // 自分宛にウェルカム音声を送信して動作確認
 function _testWelcomeAudio() {
   sendWelcomeAudio('<your_line_uid>');
+}
+
+// ダッシュボード見栄え確認用にダミーデータを 5 ユーザー分挿入 (Useed_001..005)
+function _seedDashboard() {
+  _seedTestData();
+}
+// 上で seed したダミーを全削除
+function _purgeDashboard() {
+  _purgeTestData();
+}
+
+// 自分の招待コードを取得
+function _myReferralCode() {
+  Logger.log(getReferralCode('<your_line_uid>'));
+}
+
+// 本番ガードを解除して即時 go-live (確認後に実行)
+function _goLiveNow() {
+  goLive();
 }
 
 // ダッシュボード値の手動計算

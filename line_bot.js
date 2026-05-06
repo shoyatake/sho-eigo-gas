@@ -223,6 +223,21 @@ function handleMessage(event) {
     }
   }
 
+  // 招待コード問い合わせ (Pro 契約者向け)
+  if (text === '招待コード' || text === '紹介コード' || text.indexOf('招待コードを') !== -1) {
+    handleReferralCodeRequest(event);
+    return;
+  }
+
+  // 紹介コード入力検出 (新規ユーザーが follow 後すぐに送る想定)
+  if (text.match(/(?:紹介コード|ref[:：])\s*[A-Z0-9]{6}/i)) {
+    if (tryConsumeReferralCode(userId, text)) {
+      replyMessage(event.replyToken, '紹介コードを受け付けました。\n紹介者と一緒に sho eigo を楽しんでもらえると嬉しいです。');
+      return;
+    }
+    // 失敗時 (無効コード or 重複) は無視して通常フロー
+  }
+
   // 解約 / キャンセル: Stripe Customer Portal に誘導 (Pro ユーザーのみ)
   if (text.indexOf('解約') !== -1 || text.indexOf('キャンセル') !== -1 || text.toLowerCase() === 'cancel') {
     if (hasTag(userId, 'purchased')) {
@@ -1550,6 +1565,73 @@ function weeklyParentReport() {
 }
 
 // ----------------------------------------
+// 友達招待コード (Pro 契約者向け)
+// 仕組み:
+//   - userId から決定論的に 6 文字コードを派生
+//   - Pro ユーザーが「招待コード」と送る → 自分のコードとシェア用テキストが返る
+//   - 新規ユーザーが follow 直後に「紹介コード XXXXXX」と送ると referral_code_<紹介者UID> タグ付与
+//   - 紹介者には別途運営判断で特典を付与 (このスクリプトはタグの記録のみ)
+// ----------------------------------------
+function getReferralCode(userId) {
+  if (!userId) return '';
+  // SHA-256 → base32-like 6 文字 (人間が打ちやすい英数大文字、I/O/0/1 を除外)
+  var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, userId);
+  var alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';  // 32 文字、視認しやすい
+  var code = '';
+  for (var i = 0; i < 6; i++) {
+    var b = bytes[i]; if (b < 0) b += 256;
+    code += alphabet.charAt(b % alphabet.length);
+  }
+  return code;
+}
+
+function findUserByReferralCode(code) {
+  if (!code || code.length !== 6) return '';
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var users = ss.getSheetByName('USERS').getDataRange().getValues();
+  for (var i = 1; i < users.length; i++) {
+    var uid = users[i][0]; if (!uid) continue;
+    if (getReferralCode(uid) === code.toUpperCase()) return uid;
+  }
+  return '';
+}
+
+function handleReferralCodeRequest(event) {
+  var userId = event.source.userId;
+  if (!hasTag(userId, 'purchased')) {
+    replyMessage(event.replyToken, '招待コードは Pro 契約者の方限定の機能です。\nまずは無料体験を試してみてください。');
+    return;
+  }
+  var code = getReferralCode(userId);
+  var msg =
+    'あなたの招待コード: ' + code + '\n\n' +
+    '友人に共有するシェア例:\n' +
+    '──────────────\n' +
+    '英語の音、ちょっと変わるよ。\n' +
+    'water は実は「ワラ」だった。\n' +
+    '2 日体験 → https://sho-blog.com/lp/\n' +
+    '紹介コード: ' + code + '\n' +
+    '──────────────\n\n' +
+    '紹介された方が Pro 契約に進むと、双方に特典をご用意しています (詳細は別途ご案内)。';
+  replyMessage(event.replyToken, msg);
+}
+
+function tryConsumeReferralCode(userId, text) {
+  // テキスト中の「紹介コード XXXXXX」「ref:XXXXXX」を探す
+  var m = text.match(/(?:紹介コード|ref[:：])\s*([A-Z0-9]{6})/i);
+  if (!m) return false;
+  var code = m[1].toUpperCase();
+  var referrer = findUserByReferralCode(code);
+  if (!referrer || referrer === userId) return false;
+  if (hasTag(userId, 'referral_consumed')) return false;
+  addTag(userId, 'referral_consumed');
+  addTag(userId, 'referred_by_' + referrer);
+  addTag(referrer, 'referrer_of_' + userId);
+  notifyAlert('[Referral] new ' + userId.substr(0, 10) + '... ← ' + referrer.substr(0, 10) + '... (code ' + code + ')', 'slack');
+  return true;
+}
+
+// ----------------------------------------
 // シェア用テキスト配信 cron (Day 2 完了直後、24h 以内、毎日 12:00 JST)
 // 「体験が良かったら誰かに話したくなる」瞬間を逃さない
 // ----------------------------------------
@@ -1748,6 +1830,104 @@ function setupEverything() {
   Logger.log('Setup complete. 残りは Script Properties (Stripe / Anthropic / Slack / ADMIN_TOKEN) を手動で設定してください。');
   Logger.log('必須プロパティ一覧: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_URL_SECRET, STRIPE_PRICE_PERSONAL, STRIPE_PRICE_FAMILY, STRIPE_PRICE_CORP, ANTHROPIC_API_KEY, ADMIN_TOKEN');
   Logger.log('推奨プロパティ: SLACK_WEBHOOK_URL, OWNER_LINE_USER_ID, LINE_RICHMENU_PRO_ID, ALLOWED_TEST_UIDS, LIVE_OPEN_AFTER');
+}
+
+// ----------------------------------------
+// ERROR_LOG sheet と safeFetch ラッパー
+// ----------------------------------------
+function logError(source, message, payload) {
+  try {
+    var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+    var sheet = ss.getSheetByName('ERROR_LOG') || ss.insertSheet('ERROR_LOG');
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(['receivedAt','source','message','payload']);
+      sheet.getRange(1,1,1,4).setBackground('#1a2d45').setFontColor('#fff').setFontWeight('bold');
+    }
+    sheet.appendRow([new Date(), source || '', String(message || '').substr(0, 1000), payload ? JSON.stringify(payload).substr(0, 1500) : '']);
+  } catch(e) {
+    Logger.log('logError itself failed: ' + e);
+  }
+}
+
+// UrlFetchApp の薄いラッパー。非 200 時に ERROR_LOG に記録する。
+function safeFetch(url, options, source) {
+  options = options || {};
+  if (options.muteHttpExceptions !== false) options.muteHttpExceptions = true;
+  try {
+    var resp = UrlFetchApp.fetch(url, options);
+    var code = resp.getResponseCode();
+    if (code < 200 || code >= 300) {
+      logError(source || 'safeFetch', 'HTTP ' + code + ' ' + url, { body: resp.getContentText().substr(0, 500) });
+    }
+    return resp;
+  } catch(e) {
+    logError(source || 'safeFetch', 'exception ' + e + ' ' + url, null);
+    throw e;
+  }
+}
+
+// ----------------------------------------
+// テストデータ seed (ダッシュボードの見栄え確認用)
+// ----------------------------------------
+function _seedTestData() {
+  setupSheets();
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var usersSheet = ss.getSheetByName('USERS');
+  var tagsSheet = ss.getSheetByName('TAGS');
+  var clickSheet = ss.getSheetByName('CLICK_LOG');
+  var fbSheet = ss.getSheetByName('FEEDBACK_LOG');
+
+  var now = new Date();
+  var seedUsers = [
+    ['Useed_001','テスト 個人A','SC-MAIN', 1, new Date(now.getTime() - 1*86400000), new Date(now.getTime() - 2*86400000), ['src_line','read_s0']],
+    ['Useed_002','テスト 個人B','SC-MAIN', 2, new Date(now.getTime() - 2*86400000), new Date(now.getTime() - 4*86400000), ['src_line','read_s0','read_s1']],
+    ['Useed_003','テスト 個人C','SC-MAIN', 3, new Date(now.getTime() - 1*86400000), new Date(now.getTime() - 6*86400000), ['src_line','read_s0','read_s1','read_s2']],
+    ['Useed_004','テスト 保護者D','SC-PARENT', 1, new Date(now.getTime() - 1*86400000), new Date(now.getTime() - 5*86400000), ['src_line','attr_parent','read_p1','purchased','purchased_plan_family']],
+    ['Useed_005','テスト 法人E','SC-ADULT', 1, new Date(now.getTime() - 3*86400000), new Date(now.getTime() - 8*86400000), ['src_line','attr_adult','purchased','purchased_plan_corp']],
+  ];
+  seedUsers.forEach(function(u) {
+    usersSheet.appendRow([u[0], u[1], u[2], u[3], u[4], u[5]]);
+    u[6].forEach(function(t) { tagsSheet.appendRow([u[0], t, new Date(now.getTime() - Math.random() * 5 * 86400000)]); });
+    // ダミー clicks
+    for (var c = 0; c < 3 + Math.floor(Math.random() * 5); c++) {
+      clickSheet.appendRow([u[0], 'read_s0', 'https://sho-blog.com/all/trial/trial_day1.html', new Date(now.getTime() - Math.random() * 7 * 86400000)]);
+    }
+    // ダミー AI 添削
+    fbSheet.appendRow([u[0], 'ai_writing', '原文:\nIt was rain yesterday\n\n添削:\n✅ 改善文: It was raining yesterday\n💡 ポイント: 進行形で「降っていた」と表現すると自然です', new Date(now.getTime() - Math.random() * 5 * 86400000)]);
+  });
+  Logger.log('テストデータ seed 完了 (5 ユーザー)。本番でもアクセス可能なので確認後 _purgeTestData() で削除してください。');
+}
+
+function _purgeTestData() {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  ['USERS','TAGS','CLICK_LOG','FEEDBACK_LOG'].forEach(function(name) {
+    var sheet = ss.getSheetByName(name);
+    if (!sheet) return;
+    var data = sheet.getDataRange().getValues();
+    for (var i = data.length - 1; i >= 1; i--) {
+      if (String(data[i][0] || '').indexOf('Useed_') === 0) sheet.deleteRow(i + 1);
+    }
+  });
+  Logger.log('テストデータ削除完了');
+}
+
+// ----------------------------------------
+// go-live: テストガードを解除して本番運用に切り替える
+// ----------------------------------------
+function goLive() {
+  var props = PropertiesService.getScriptProperties();
+  // readiness check
+  var required = ['STRIPE_SECRET_KEY','STRIPE_WEBHOOK_URL_SECRET','STRIPE_PRICE_PERSONAL','STRIPE_PRICE_FAMILY','STRIPE_PRICE_CORP','ANTHROPIC_API_KEY','ADMIN_TOKEN'];
+  var missing = required.filter(function(k){ return !props.getProperty(k); });
+  if (missing.length > 0) {
+    Logger.log('goLive aborted: missing required properties: ' + missing.join(', '));
+    return;
+  }
+  // テストガードを開放 (本番モードに切替)
+  props.deleteProperty('ALLOWED_TEST_UIDS');
+  props.deleteProperty('LIVE_OPEN_AFTER');
+  Logger.log('🟢 GO LIVE: ALLOWED_TEST_UIDS / LIVE_OPEN_AFTER を削除しました。誰でも決済できる状態です。');
+  notifyAlert('[GO LIVE] sho eigo Pro が本番リリースされました ' + new Date(), 'all');
 }
 
 // 全プロパティ設定状況をまとめてチェックする (本番リリース前のヘルスチェック)
