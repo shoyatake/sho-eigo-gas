@@ -1,0 +1,130 @@
+/**
+ * JWT.gs — HS256 JWT 発行・検証ライブラリ
+ *   公開関数: issueJwt(userId) / verifyJwt(token) / revokeJwt(jti)
+ *   設定値:   ScriptProperties[SPREADSHEET_ID, JWT_SECRET, JWT_TTL_DAYS(任意/既定30)]
+ *   依存:     SESSIONS シート（setupSheets 済みであること）
+ *
+ * 検証失敗は必ず throw する。try-catch で握りつぶさない。
+ * 署名比較はタイミング攻撃を避けるため定時間で行う。
+ */
+
+function issueJwt(userId) {
+  if (!userId) throw new Error('userId が空です');
+  var props = _props();
+  var ttlDays = Number(props.JWT_TTL_DAYS || 30);
+  var nowSec = Math.floor(Date.now() / 1000);
+  var expSec = nowSec + ttlDays * 86400;
+  var jti = Utilities.getUuid().replace(/-/g, ''); // 32 hex (16 bytes 相当)
+
+  var header = { alg: 'HS256', typ: 'JWT' };
+  var payload = { sub: userId, iat: nowSec, exp: expSec, jti: jti };
+
+  var headerB64 = _b64UrlEncodeStr(JSON.stringify(header));
+  var payloadB64 = _b64UrlEncodeStr(JSON.stringify(payload));
+  var signingInput = headerB64 + '.' + payloadB64;
+  var sigBytes = Utilities.computeHmacSha256Signature(signingInput, props.JWT_SECRET);
+  var token = signingInput + '.' + _b64UrlEncode(sigBytes);
+
+  var issuedAt = new Date(nowSec * 1000);
+  var expiresAt = new Date(expSec * 1000);
+  var sessions = _sessionsSheet(props.SPREADSHEET_ID);
+  sessions.appendRow([jti, userId, issuedAt, expiresAt, false]);
+
+  return { token: token, jti: jti, expiresAt: expiresAt };
+}
+
+function verifyJwt(token) {
+  if (!token || typeof token !== 'string') throw new Error('token が空です');
+  var parts = token.split('.');
+  if (parts.length !== 3) throw new Error('invalid token format');
+  var headerB64 = parts[0], payloadB64 = parts[1], sigB64 = parts[2];
+
+  var props = _props();
+  var expected = Utilities.computeHmacSha256Signature(headerB64 + '.' + payloadB64, props.JWT_SECRET);
+  var actual = _b64UrlDecode(sigB64);
+  if (!_constantTimeEqual(expected, actual)) throw new Error('invalid signature');
+
+  var payloadJson = Utilities.newBlob(_b64UrlDecode(payloadB64)).getDataAsString();
+  var payload = JSON.parse(payloadJson);
+  var nowSec = Math.floor(Date.now() / 1000);
+  if (typeof payload.exp !== 'number' || payload.exp < nowSec) throw new Error('expired');
+  if (!payload.jti || !payload.sub) throw new Error('invalid claims');
+
+  var sessions = _sessionsSheet(props.SPREADSHEET_ID);
+  var values = sessions.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === payload.jti) {
+      if (values[i][4] === true) throw new Error('revoked');
+      return {
+        userId: payload.sub,
+        jti: payload.jti,
+        issuedAt: new Date(payload.iat * 1000),
+        expiresAt: new Date(payload.exp * 1000)
+      };
+    }
+  }
+  throw new Error('session not found');
+}
+
+function revokeJwt(jti) {
+  if (!jti) throw new Error('jti が空です');
+  var props = _props();
+  var sessions = _sessionsSheet(props.SPREADSHEET_ID);
+  var values = sessions.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === jti) {
+      sessions.getRange(i + 1, 5).setValue(true);
+      Logger.log('revokeJwt: jti=' + jti + ' を revoked=true に更新');
+      return true;
+    }
+  }
+  Logger.log('⚠️ revokeJwt: jti が見つからない (' + jti + ')');
+  return false;
+}
+
+// ---------- 内部ヘルパー ----------
+
+function _props() {
+  var sp = PropertiesService.getScriptProperties();
+  var spreadsheetId = sp.getProperty('SPREADSHEET_ID');
+  var secret = sp.getProperty('JWT_SECRET');
+  if (!spreadsheetId) throw new Error('ScriptProperties に SPREADSHEET_ID が設定されていません');
+  if (!secret) throw new Error('ScriptProperties に JWT_SECRET が設定されていません');
+  return {
+    SPREADSHEET_ID: spreadsheetId,
+    JWT_SECRET: secret,
+    JWT_TTL_DAYS: sp.getProperty('JWT_TTL_DAYS')
+  };
+}
+
+function _sessionsSheet(spreadsheetId) {
+  var sheet = SpreadsheetApp.openById(spreadsheetId).getSheetByName('SESSIONS');
+  if (!sheet) throw new Error('SESSIONS シートが存在しません。setupSheets を先に実行してください');
+  return sheet;
+}
+
+function _b64UrlEncodeStr(str) {
+  return _b64UrlEncode(Utilities.newBlob(str).getBytes());
+}
+
+function _b64UrlEncode(bytes) {
+  return Utilities.base64Encode(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function _b64UrlDecode(str) {
+  var pad = str.length % 4;
+  var padded = str.replace(/-/g, '+').replace(/_/g, '/') + (pad ? '===='.slice(pad) : '');
+  return Utilities.base64Decode(padded);
+}
+
+function _constantTimeEqual(a, b) {
+  var la = a.length, lb = b.length;
+  var len = Math.max(la, lb);
+  var diff = la ^ lb;
+  for (var i = 0; i < len; i++) {
+    var av = i < la ? (a[i] & 0xff) : 0;
+    var bv = i < lb ? (b[i] & 0xff) : 0;
+    diff |= (av ^ bv);
+  }
+  return diff === 0;
+}
