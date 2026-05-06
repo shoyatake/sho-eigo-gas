@@ -1,139 +1,121 @@
-# Chrome Claude 用プロンプト: Phase 1-B 自動実行
+# Chrome Claude 用プロンプト: Phase 1-B 完全自動実行 (人の確認なし)
 
 このファイル全体を Chrome Claude のチャット欄に貼り付けて送信してください。
-Claude Code Web の GitHub MCP ツールを使って、L3 Advanced ページの生成 →
-公開検証までを 1 セッションで完結させます。
+dry-run の検証結果が良好なら **人の確認を取らずに本番実行まで進めます**。
 
 ---
 
 ```
 あなたは sho eigo プロジェクト (https://github.com/shoyatake/sho-eigo-gas) の
-オペレーターです。以下の手順を順に実行し、最後に結果を報告してください。
+オペレーターです。以下の手順を **全部一気通貫で** 実行してください。
+途中で人 (翔也) に確認を取る必要はありません。
 
 ## 前提条件
 
 - 対象リポジトリ: shoyatake/sho-eigo-gas
-- 対象ブランチ: claude/v1.1-parent-trial-realign (PR #28、Draft)
+- 対象ブランチ: claude/v1.1-parent-trial-realign
 - 対象ワークフロー: .github/workflows/phase1b_l3_advanced.yml
-- 必要な secret: secrets.FTP_PASS (既存の deploy.yml が使っているので登録済の想定)
+- 必要な secret: secrets.FTP_PASS (登録済み想定)
 
-## 手順
+## 手順 (1 セッション完結、ヒトの確認なし)
 
-### Step 1: 状況確認
+### Step 1: ワークフロー存在確認
 
-GitHub MCP で以下を確認:
-1. リポジトリ shoyatake/sho-eigo-gas の最新の claude/v1.1-parent-trial-realign
-   ブランチに .github/workflows/phase1b_l3_advanced.yml が存在するか
-2. 該当ワークフローが workflow_dispatch を受け付けるか
-3. 直近の同ワークフロー実行履歴があれば、最新 1 件のステータス
+GitHub MCP で確認:
+- claude/v1.1-parent-trial-realign に
+  .github/workflows/phase1b_l3_advanced.yml が存在
+- workflow_dispatch を受け付ける
 
-不一致や失敗があれば、ここで報告して停止してください。
+存在しない / 受け付けない場合のみここで停止。
 
-### Step 2: dry-run (skip_upload=true) を起動
+### Step 2: dry-run 起動 (skip_upload=true)
 
-GitHub Actions API で workflow_dispatch を発火:
+GitHub Actions API で workflow_dispatch:
 - workflow_id: phase1b_l3_advanced.yml
 - ref: claude/v1.1-parent-trial-realign
 - inputs: { skip_upload: "true", skip_top_inject: "false" }
 
-### Step 3: dry-run 実行を監視
+### Step 3: dry-run 完了待機 + ログ検証
 
-新しく作成されたワークフロー実行を取得し、status が completed になるまで
-30 秒間隔で最大 5 分待つ。
+最大 5 分、30 秒間隔で status=completed を待機。
+完了したらログを取得し、以下を機械的にチェック:
 
-実行ログを取得して以下を確認:
-1. ジョブ "generate" が success で終わっているか
-2. ログ内に "✅ Phase 1-B 完了" の文字列があるか
-3. ログ内に [x] や [err] が無いか
-4. 「古い値の残存なし」が parent_advanced と student_advanced の両方で出ているか
+  ✓ ジョブ "generate" が success
+  ✓ "✅ Phase 1-B 完了" の文字列が含まれる
+  ✓ "[x]" や "[err]" の出現が 0
+  ✓ 「古い値の残存なし」が parent_advanced と student_advanced の両方
+  ✓ artifact が phase1b-html-<run_number> として正常に生成
 
-### Step 4: dry-run 結果の判定
+### Step 4: 自動分岐
 
-- 上記 1-4 すべて満たす → Step 5 へ進む
-- いずれか満たさない → ログの該当部分を抜粋して報告し、Step 5 へ進まずに停止
+すべて満たす → **そのまま Step 5 に進む。人の確認を取らない**。
+1 つでも満たさない → ログの該当部分 50 行を抜粋して報告し停止。
 
-### Step 5: 翔也さんに本番実行の確認を取る
+### Step 5: 本番実行 (skip_upload=false) — 自動的に発火
 
-Step 4 が OK だった場合、以下のサマリと共に「本番実行 (skip_upload=false)
-に進めますか?」と日本語で質問してください。
-
-- dry-run の Run URL
-- 生成された parent_advanced.html / student_advanced.html のサイズ
-- ログから抽出した価格・コース数・レッスン数の件数
-- 残存していた古い値の有無
-
-ユーザーが「はい」「進めて」「OK」等の肯定的な返答をしたら Step 6 へ。
-否定や曖昧な返答なら、Step 6 には進まずユーザーに次の指示を仰ぐ。
-
-### Step 6: 本番実行 (skip_upload=false)
-
-GitHub Actions API で workflow_dispatch を発火:
+GitHub Actions API で workflow_dispatch:
 - workflow_id: phase1b_l3_advanced.yml
 - ref: claude/v1.1-parent-trial-realign
 - inputs: { skip_upload: "false", skip_top_inject: "false" }
 
-### Step 7: 本番実行を監視
+### Step 6: 本番実行を監視
 
-Step 3 と同様に completed まで待機。ログから以下を確認:
+最大 5 分、30 秒間隔で待機。完了後ログを取得して:
 
-- ジョブ "generate" が success
-- "▶ Step 4: FTP アップロード" 配下に [ok] アップ: 4 件
-  (parent/advanced/index.html, student/advanced/index.html,
-   parent/index.html, student/index.html)
-- "▶ Step 5: 公開ページ検証" 配下:
-  - HTTP 200 が 4 つの URL すべて
-  - parent/advanced と student/advanced で ¥3,980>=1, ¥3,480=0,
-    51コース>=1, 39コース=0
-  - parent top と student top に /advanced/ リンクが 1 件以上
+  ✓ ジョブ success
+  ✓ "[ok] アップ:" が 4 行
+  ✓ "▶ Step 5: 公開ページ検証" 配下に [ok] が 4 つ以上
+  ✓ "parent/advanced/: ¥3,980=N件 ¥3,480=0件 51=N件 39=0件" 形式の OK 行
+  ✓ "student/advanced/: ..." OK 行
 
-### Step 8: 完了報告
+満たさない場合は、即時にロールバック手順を提示して報告:
 
-最後に以下のフォーマットで報告:
+  ロールバック: Artifacts に保管された *_intermediate.html を
+  https://github.com/shoyatake/sho-eigo-gas/actions/runs/<id>
+  からダウンロードし、Cloud Shell で
+    curl -u xs672802:$XSERVER_PASS -T parent_intermediate.html \
+      "ftp://sv16546.xserver.jp/sho-blog.com/public_html/courses/parent/intermediate/index.html"
+  で再アップロード。
 
-```
-✅ Phase 1-B 完了
+### Step 7: 完了報告
 
-dry-run Run URL: https://github.com/shoyatake/sho-eigo-gas/actions/runs/<id>
-本番 Run URL:    https://github.com/shoyatake/sho-eigo-gas/actions/runs/<id>
+下記フォーマットで報告:
 
-公開ページ:
-  https://sho-blog.com/courses/parent/advanced/   [200]
-  https://sho-blog.com/courses/student/advanced/  [200]
+  ✅ Phase 1-B 完全自動完了
 
-トップページ更新:
-  https://sho-blog.com/courses/parent/   (advanced リンク N 個)
-  https://sho-blog.com/courses/student/  (advanced リンク N 個)
+  dry-run Run URL: https://github.com/shoyatake/sho-eigo-gas/actions/runs/<id1>
+  本番 Run URL:    https://github.com/shoyatake/sho-eigo-gas/actions/runs/<id2>
 
-検証結果:
-  parent/advanced/  ¥3,980=N件  51コース=N件  古い値=0件
-  student/advanced/ ¥3,980=N件  51コース=N件  古い値=0件
+  公開ページ:
+    https://sho-blog.com/courses/parent/advanced/   [200]
+    https://sho-blog.com/courses/student/advanced/  [200]
 
-バックアップ:
-  Artifacts (14日間保管): https://github.com/shoyatake/sho-eigo-gas/actions/runs/<id>
-```
+  検証:
+    parent/advanced/  ¥3,980=N  51コース=N  古い値=0
+    student/advanced/ ¥3,980=N  51コース=N  古い値=0
+    parent top advanced リンク: N
+    student top advanced リンク: N
+
+  バックアップ:
+    https://github.com/shoyatake/sho-eigo-gas/actions/runs/<id1> の Artifacts
 
 ## 注意事項
 
-- 凍結ルール (CLAUDE.md §1) に従い、新機能を追加してはいけません。
-  このタスクは既存ワークフローの 1 クリック起動だけです。
-- 検証 NG の場合は本番実行に進まず停止してください。
-- secrets.FTP_PASS が無いエラーが出たら、ユーザーに登録方法を伝えて停止。
-- スクリーンショットは禁止。すべて API レスポンス / ログテキストで確認。
-- 本番アップロードに失敗してロールバックが必要な場合は、Artifacts に
-  含まれる *_intermediate.html のバックアップを使って FTP に再アップする
-  Cloud Shell コマンドをユーザーに提示してください。
+- 凍結ルール (CLAUDE.md §1) は維持。ワークフロー起動と検証のみ。
+- ヒトに「進めますか?」と聞かない (今回は完全自動モード)。
+- スクリーンショット撮影禁止。すべて API レスポンス / ログテキストで確認。
+- dry-run NG なら本番に絶対進まない (これだけは守る)。
+- secrets.FTP_PASS が無いエラーで停止したらユーザーに登録方法を伝える。
 ```
 
 ---
 
 ## このプロンプトの使い方
 
-1. 上記コードブロック全体 (` ``` ` で囲まれた部分) をコピー
-2. https://claude.ai/code を開いて新しいセッション
-3. 「sho eigo」リポジトリへの GitHub アクセス権を持つアカウントでログイン済か確認
-4. プロンプトを貼り付けて送信
-5. Step 5 の確認質問が来たら「進めて」と返答
-6. Step 8 の完了報告を待つ
+1. 上記のコードブロック (` ``` ` で囲まれた部分) をコピー
+2. https://claude.ai/code を開いて新規セッション
+3. プロンプトを貼り付けて送信
+4. **席を立って戻ってくると完了レポートが出ている** (約 5〜10 分)
 
-GitHub MCP ツールが利用可能な Claude Code Web セッションなら、Cloud Shell を
-開かなくても全自動で進みます。
+dry-run の自動検証が通れば、人の操作なしで本番反映まで走ります。
+ロールバックが必要なケースのみ手順が指示されます。
