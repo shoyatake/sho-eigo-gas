@@ -89,6 +89,17 @@ function doGet(e) {
     }
     return buildAdminDashboardHtml();
   }
+  // 子ども専用ダッシュボード (uid 必須、認証なし。プライバシー上、URL を共有しないよう pages 側で案内)
+  if (e && e.parameter && e.parameter.action === 'child_dashboard') {
+    var cuid = e.parameter.uid || '';
+    if (!cuid) {
+      return ContentService.createTextOutput(JSON.stringify({ error: 'missing_uid' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    return ContentService.createTextOutput(JSON.stringify(buildChildDashboardJson(cuid)))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   // Stripe Customer Portal (解約・カード変更)
   if (e && e.parameter && e.parameter.action === 'portal') {
     var puid = e.parameter.uid || '';
@@ -1338,6 +1349,69 @@ function buildAdminDashboardHtml() {
   return HtmlService.createHtmlOutput(html);
 }
 
+// 子ども専用ダッシュボード用 JSON
+function buildChildDashboardJson(userId) {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var users = ss.getSheetByName('USERS').getDataRange().getValues();
+  var displayName = '';
+  var registeredAt = null;
+  for (var i = 1; i < users.length; i++) {
+    if (users[i][0] === userId) {
+      displayName = users[i][1] || '';
+      registeredAt = users[i][5] ? new Date(users[i][5]) : null;
+      break;
+    }
+  }
+  if (!registeredAt) return { error: 'not_found' };
+  // 連続日数 (CLICK_LOG) と AI 添削 件数、音声件数
+  var clickSheet = ss.getSheetByName('CLICK_LOG');
+  var fbSheet = ss.getSheetByName('FEEDBACK_LOG');
+  var dayKeySet = {};
+  if (clickSheet) {
+    var clicks = clickSheet.getDataRange().getValues();
+    for (var c = 1; c < clicks.length; c++) {
+      if (clicks[c][0] !== userId) continue;
+      var at = clicks[c][3] ? new Date(clicks[c][3]) : null;
+      if (!at) continue;
+      dayKeySet[Utilities.formatDate(at, 'JST', 'yyyy-MM-dd')] = true;
+    }
+  }
+  var aiCount = 0;
+  var audioCount = 0;
+  var lastAiText = '';
+  if (fbSheet) {
+    var fbs = fbSheet.getDataRange().getValues();
+    for (var d = 1; d < fbs.length; d++) {
+      if (fbs[d][0] !== userId) continue;
+      if (fbs[d][1] === 'ai_writing') {
+        aiCount++;
+        var content = fbs[d][2] || '';
+        var line = content.split('\n')[1] || '';
+        if (line) lastAiText = line.substr(0, 60);
+      }
+      if (fbs[d][1] === 'audio') audioCount++;
+    }
+  }
+  // 連続日数 (今日から逆順に何日連続でクリックがあったか)
+  var streak = 0;
+  for (var s = 0; s < 365; s++) {
+    var dKey = Utilities.formatDate(new Date(Date.now() - s * 86400000), 'JST', 'yyyy-MM-dd');
+    if (dayKeySet[dKey]) streak++;
+    else if (s === 0) continue;  // 今日まだ未活動なら streak は前日からカウント
+    else break;
+  }
+  return {
+    name: displayName,
+    days_with_us: Math.floor((Date.now() - registeredAt.getTime()) / 86400000),
+    streak: streak,
+    ai_writing_count: aiCount,
+    audio_count: audioCount,
+    last_ai_text: lastAiText,
+    is_pro: hasTag(userId, 'purchased'),
+    plan_family: hasTag(userId, 'purchased_plan_family')
+  };
+}
+
 function buildAdminDashboardJson() {
   var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   var metricsSheet = ss.getSheetByName('METRICS_DAILY');
@@ -1587,15 +1661,50 @@ function handleIncomingAudio(event) {
   var userId = event.source.userId;
   var msgId = (event.message && event.message.id) || '';
   var duration = (event.message && event.message.duration) || 0;
-  saveFeedback(userId, 'audio', 'msgId=' + msgId + ' duration=' + duration + 'ms');
-  // タグで件数管理 (1 件目で audio_received、累計は monthlyParentAlbum で集計)
+
+  // (オプション) Drive に音源を保存。Script Property AUDIO_ARCHIVE_FOLDER_ID 設定時のみ動作。
+  var driveUrl = '';
+  var folderId = getProp('AUDIO_ARCHIVE_FOLDER_ID');
+  if (folderId && msgId) {
+    try {
+      driveUrl = saveLineAudioToDrive(folderId, userId, msgId);
+    } catch(e) {
+      logError('handleIncomingAudio.drive', e.toString(), { userId: userId, msgId: msgId });
+    }
+  }
+
+  saveFeedback(userId, 'audio', 'msgId=' + msgId + ' duration=' + duration + 'ms' + (driveUrl ? ' url=' + driveUrl : ''));
   if (!hasTag(userId, 'audio_received')) addTag(userId, 'audio_received');
-  // 保護者プラン契約者には特別な返信、それ以外には軽い感謝
   if (hasTag(userId, 'purchased_plan_family')) {
     replyMessage(event.replyToken, '音声を受け取りました。\nそのまま LINE トークに残るので、後から振り返れます。\n\n月初の「思い出アルバム」にもこの音声が反映されます。');
   } else {
     replyMessage(event.replyToken, '音声ありがとうございます。\nしっかり聴かせていただきます。');
   }
+}
+
+// LINE Content API で音源 (mp3 or m4a) を取得し Drive に保存
+function saveLineAudioToDrive(parentFolderId, userId, msgId) {
+  var resp = UrlFetchApp.fetch('https://api-data.line.me/v2/bot/message/' + msgId + '/content', {
+    method: 'get',
+    headers: { 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+    muteHttpExceptions: true
+  });
+  if (resp.getResponseCode() !== 200) {
+    logError('saveLineAudioToDrive', 'HTTP ' + resp.getResponseCode(), { msgId: msgId });
+    return '';
+  }
+  var blob = resp.getBlob();
+  // 月別サブフォルダを確保 (FOLDER_ID/YYYY-MM/)
+  var monthName = Utilities.formatDate(new Date(), 'JST', 'yyyy-MM');
+  var parent = DriveApp.getFolderById(parentFolderId);
+  var monthFolder;
+  var folders = parent.getFoldersByName(monthName);
+  monthFolder = folders.hasNext() ? folders.next() : parent.createFolder(monthName);
+  var fileName = userId.substr(0, 8) + '_' + msgId + (blob.getContentType().indexOf('mpeg') !== -1 ? '.mp3' : '.m4a');
+  blob.setName(fileName);
+  var file = monthFolder.createFile(blob);
+  // file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);  // 必要なら有効化
+  return file.getUrl();
 }
 
 // ----------------------------------------

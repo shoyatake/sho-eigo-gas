@@ -56,13 +56,15 @@ jobs:
         env:
           LINE_ID: ${{ secrets.LINE_ID }}
           GAS_DEPLOYMENT_ID: ${{ secrets.GAS_DEPLOYMENT_ID }}
+          LIFF_ID: ${{ secrets.LIFF_ID }}
         run: |
           mkdir -p build
           cp -r pages/. build/
           find build -type f \( -name '*.html' -o -name '*.css' \) -print0 \
             | xargs -0 sed -i \
                 -e "s|@YOUR_LINE_ID|${LINE_ID}|g" \
-                -e "s|YOUR_GAS_DEPLOYMENT_ID|${GAS_DEPLOYMENT_ID}|g"
+                -e "s|YOUR_GAS_DEPLOYMENT_ID|${GAS_DEPLOYMENT_ID}|g" \
+                -e "s|YOUR_LIFF_ID|${LIFF_ID:-YOUR_LIFF_ID}|g"
 
       - name: Install lftp
         run: sudo apt-get update && sudo apt-get install -y lftp
@@ -89,6 +91,9 @@ jobs:
                    https://sho-blog.com/payment/ \
                    https://sho-blog.com/payment/success.html \
                    https://sho-blog.com/payment/cancel.html \
+                   https://sho-blog.com/admin/ \
+                   https://sho-blog.com/child/dashboard.html \
+                   https://sho-blog.com/articles/ \
                    https://sho-blog.com/assets/style.css ; do
             printf "%s -> " "$u"
             curl -sI "$u" | head -1 || true

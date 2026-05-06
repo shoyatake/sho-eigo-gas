@@ -93,19 +93,47 @@
   </div>
 </footer>
 
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
 (function() {
-  // GAS_DEPLOYMENT_ID は deploy.yml の placeholder substitution で差し込まれる
+  // GAS_DEPLOYMENT_ID と LIFF_ID は deploy.yml の placeholder substitution で差し込まれる
   var GAS_DEPLOY_ID = 'YOUR_GAS_DEPLOYMENT_ID';
+  var LIFF_ID       = 'YOUR_LIFF_ID';  // 未設定なら空文字 (URL の uid だけで動作)
   var GAS_BASE = 'https://script.google.com/macros/s/' + GAS_DEPLOY_ID + '/exec';
 
-  // URL パラメータからプラン取得 + LINE userId (任意)
   var params = new URLSearchParams(location.search);
   var plan = params.get('plan');
   var uid  = params.get('uid') || '';
 
-  // LINE userId が無い場合の注意表示
-  if (!uid) {
+  // LIFF が利用可能でかつ URL に uid が無ければ LIFF で取得
+  function bootstrap() {
+    if (uid) {
+      hookCtas();
+      return;
+    }
+    if (LIFF_ID && LIFF_ID !== 'YOUR_LIFF_ID' && typeof liff !== 'undefined') {
+      liff.init({ liffId: LIFF_ID }).then(function() {
+        if (liff.isLoggedIn() && liff.isInClient && liff.isInClient()) {
+          var profile = liff.getDecodedIDToken && liff.getDecodedIDToken();
+          if (profile && profile.sub) {
+            uid = profile.sub;
+            hookCtas();
+            return;
+          }
+          liff.getProfile().then(function(p) {
+            uid = p.userId;
+            hookCtas();
+          }).catch(function() { hookCtas(); });
+        } else {
+          hookCtas();
+        }
+      }).catch(function(){ hookCtas(); });
+    } else {
+      hookCtas();
+    }
+  }
+
+  function showLineNotice() {
     var notice = document.getElementById('line-only-notice');
     if (notice) notice.hidden = false;
   }
@@ -122,30 +150,30 @@
     return 'https://line.me/R/oaMessage/@YOUR_LINE_ID/?' + encodeURIComponent(label);
   }
 
-  // 各 CTA に Stripe Checkout 遷移リンクを設定
-  // uid がある場合 (LINE Bot 経由): 直接 Stripe Checkout に飛ぶ
-  // uid が無い場合 (直アクセス): LINE Bot にメッセージを送ってもらう
-  ['personal', 'family', 'corp'].forEach(function(p) {
-    var el = document.getElementById('cta-' + p);
-    if (!el) return;
-    if (p === 'corp') {
-      el.href = 'https://line.me/R/oaMessage/@YOUR_LINE_ID/?法人Pro問い合わせ';
-      el.textContent = 'LINE で問い合わせる';
-    } else if (uid) {
-      el.href = buildCheckoutUrl(p);
-      el.textContent = (p === 'family') ? '保護者プランに進む (Stripe)' : 'Pro に進む (Stripe)';
-    } else {
-      el.href = buildLineDeepLink(p);
-      el.textContent = 'LINE で続ける';
+  function hookCtas() {
+    if (!uid) showLineNotice();
+    ['personal', 'family', 'corp'].forEach(function(p) {
+      var el = document.getElementById('cta-' + p);
+      if (!el) return;
+      if (p === 'corp') {
+        el.href = 'https://line.me/R/oaMessage/@YOUR_LINE_ID/?法人Pro問い合わせ';
+        el.textContent = 'LINE で問い合わせる';
+      } else if (uid) {
+        el.href = buildCheckoutUrl(p);
+        el.textContent = (p === 'family') ? '保護者プランに進む (Stripe)' : 'Pro に進む (Stripe)';
+      } else {
+        el.href = buildLineDeepLink(p);
+        el.textContent = 'LINE で続ける';
+      }
+    });
+    if (plan && document.querySelector('[data-plan="' + plan + '"]')) {
+      var card = document.querySelector('[data-plan="' + plan + '"]');
+      card.style.outline = '3px solid #1a2d45';
+      card.scrollIntoView({behavior: 'smooth', block: 'center'});
     }
-  });
-
-  // クエリのプランがあれば自動でハイライト/スクロール
-  if (plan && document.querySelector('[data-plan="' + plan + '"]')) {
-    var card = document.querySelector('[data-plan="' + plan + '"]');
-    card.style.outline = '3px solid #1a2d45';
-    card.scrollIntoView({behavior: 'smooth', block: 'center'});
   }
+
+  bootstrap();
 })();
 </script>
 

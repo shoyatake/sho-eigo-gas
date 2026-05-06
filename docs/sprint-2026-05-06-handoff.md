@@ -68,6 +68,7 @@
 | `NOTION_DB_ID` | sns_proposal Notion DB | 1.4 |
 | `LINE_CHANNEL_ACCESS_TOKEN` | sns_proposal 通知用 | 既存 (現在 GAS 内) |
 | `OWNER_LINE_USER_ID` | sns_proposal / GAS alert 宛先 | 自分の LINE userId |
+| `LIFF_ID` | /payment/ で LINE userId を自動取得 (LINE Developers → LIFF) | 任意 |
 
 GAS の既存 secrets (`CLASPRC_JSON`, `CLASP_JSON`, `GAS_DEPLOYMENT_ID`, `LINE_ID`, `FTP_PASS`) はそのまま。
 
@@ -91,6 +92,9 @@ clasp deploy 後、Apps Script コンソール → **プロジェクトの設定
 | `LINE_RICHMENU_PRO_ID` | menu_pro リッチメニュー ID | 任意 |
 | `ALLOWED_TEST_UIDS` | 翔也さんの LINE userId（カンマ区切り）| 安全装置 |
 | `LIVE_OPEN_AFTER` | `2026-05-06T13:00:00Z` (JST 22:00) | 安全装置 |
+| `WELCOME_AUDIO_URL` | 任意。フォロー時音声 URL を別 mp3 に切替 | 任意 |
+| `WELCOME_AUDIO_DURATION_MS` | 任意。フォロー時音声の再生秒数 (ms) | 任意 |
+| `AUDIO_ARCHIVE_FOLDER_ID` | Drive フォルダ ID。設定時のみアフター録音を Drive に保存 | 任意 |
 
 `ALLOWED_TEST_UIDS` + `LIVE_OPEN_AFTER` は **Stripe 決済の本番ガード** です。`LIVE_OPEN_AFTER` の日時を過ぎるか、`ALLOWED_TEST_UIDS` を空にすると、誰でも決済できるようになります。
 
