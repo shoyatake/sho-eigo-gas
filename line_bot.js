@@ -12,6 +12,8 @@ const CONFIG = {
 const MONITOR_CONFIG = {
   CAPACITY: 10,
   PERIOD_DAYS: 14,
+  PARENT_CAPACITY: 5,
+  PARENT_PERIOD_DAYS: 14,
 };
 
 const LINE_API = 'https://api.line.me/v2/bot/message';
@@ -229,6 +231,12 @@ function handleMessage(event) {
     return;
   }
 
+  // 「親子モニター」「保護者モニター」「思い出モニター」を先に判定 (より具体的なマッチを優先)
+  if (text.indexOf('親子モニター') !== -1 || text.indexOf('保護者モニター') !== -1 || text.indexOf('思い出モニター') !== -1) {
+    handleParentMonitorInquiry(event);
+    return;
+  }
+
   if (text.indexOf('モニター') !== -1) {
     handleMonitorInquiry(event);
     return;
@@ -297,6 +305,17 @@ function handlePostback(event) {
       replyMessage(event.replyToken, 'モニター登録が完了しました。\nこれから14日間、よろしくお願いします。\n\n1講座プレゼントの受け取り方法は\n後ほど個別にご案内します。');
     } else {
       replyMessage(event.replyToken, 'モニター枠が満席か、すでに参加済みです。');
+    }
+    return;
+  }
+
+  if (data === 'parent_monitor_join') {
+    if (joinParentMonitor(userId)) {
+      replyMessage(event.replyToken,
+        '親子モニター登録が完了しました。\nこれから 14 日間、よろしくお願いします。\n音声学習は、思い出になる。\n\n' +
+        'お子さんの英文・音声は LINE に送ってください。\n月初には「思い出アルバム」をお届けします。\n\n1 講座プレゼントの受け取り方法は後ほど個別にご案内します。');
+    } else {
+      replyMessage(event.replyToken, '親子モニター枠（5名）は満席か、すでに参加済みです。');
     }
     return;
   }
@@ -781,6 +800,74 @@ function getActiveMonitorCount() {
   return count;
 }
 
+function getActiveParentMonitorCount() {
+  // 親子モニターは MONITORS シートで status='active' かつ TAGS に mon_parent
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var sheet = ss.getSheetByName('MONITORS');
+  if (!sheet) return 0;
+  var data = sheet.getDataRange().getValues();
+  var count = 0;
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][4] !== 'active') continue;
+    if (hasTag(data[i][0], 'mon_parent')) count++;
+  }
+  return count;
+}
+
+function isParentMonitorRecruitmentOpen() {
+  return getActiveParentMonitorCount() < MONITOR_CONFIG.PARENT_CAPACITY;
+}
+
+function handleParentMonitorInquiry(event) {
+  var userId = event.source.userId;
+  if (hasTag(userId, 'mon_parent_active') || hasTag(userId, 'mon_parent_completed')) {
+    replyMessage(event.replyToken, '親子モニターには既にご参加いただいています。\nありがとうございます。');
+    return;
+  }
+  if (!isParentMonitorRecruitmentOpen()) {
+    replyMessage(event.replyToken,
+      '親子モニター枠 (5 名) は現在満席です。\n次回募集の際にあらためてご案内します。\n\n保護者プランは通常版でいつでもお試しいただけます:\nhttps://sho-blog.com/payment/?plan=family');
+    return;
+  }
+  sendParentMonitorJoinButton(event.replyToken);
+}
+
+function sendParentMonitorJoinButton(replyToken) {
+  UrlFetchApp.fetch(LINE_API + '/reply', {
+    method: 'post',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+    payload: JSON.stringify({
+      replyToken: replyToken,
+      messages: [{ type: 'template', altText: '親子モニター参加', template: {
+        type: 'buttons',
+        title: '親子モニター（5名限定）',
+        text: '音声学習は、思い出になる。\n14日間でアルバムを 1 通お届けします。',
+        actions: [
+          { type: 'postback', label: '親子モニターに参加する', data: 'parent_monitor_join' }
+        ]
+      }}]
+    }),
+    muteHttpExceptions: true
+  });
+}
+
+function joinParentMonitor(userId) {
+  if (!userId) return false;
+  if (!isParentMonitorRecruitmentOpen()) return false;
+  if (hasTag(userId, 'mon_parent_active') || hasTag(userId, 'mon_parent_completed')) return false;
+  var profile = getLineProfile(userId);
+  var displayName = profile ? profile.displayName : '';
+  var now = new Date();
+  var expectedEnd = new Date(now.getTime() + MONITOR_CONFIG.PARENT_PERIOD_DAYS * 86400000);
+  recordMonitor(userId, displayName, now, expectedEnd);
+  addTag(userId, 'mon_active');          // 既存 SC-MONITOR シナリオに乗せる
+  addTag(userId, 'mon_parent');          // 親子モニターである識別
+  addTag(userId, 'mon_parent_active');   // 親子モニター進行中
+  registerUser(userId, displayName, 'SC-MONITOR', 0, now);
+  sendStepNow(userId, 'SC-MONITOR', 0);
+  return true;
+}
+
 function isMonitorRecruitmentOpen() {
   return getActiveMonitorCount() < MONITOR_CONFIG.CAPACITY;
 }
@@ -833,6 +920,10 @@ function completeMonitor(userId) {
   if (!userId) return;
   removeTag(userId, 'mon_active');
   addTag(userId, 'mon_completed');
+  if (hasTag(userId, 'mon_parent_active')) {
+    removeTag(userId, 'mon_parent_active');
+    addTag(userId, 'mon_parent_completed');
+  }
   var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   var sheet = ss.getSheetByName('MONITORS');
   if (!sheet) return;

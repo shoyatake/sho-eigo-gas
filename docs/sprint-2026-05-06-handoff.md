@@ -117,6 +117,17 @@ clasp deploy 後、Apps Script コンソール → **プロジェクトの設定
 
 ---
 
+## 4.0 親子モニター (5 名限定 / 14 日 / 思い出プラン記録の体験)
+
+- 募集ページ: `https://sho-blog.com/monitor/parent/`
+- LINE での問合わせキーワード: `親子モニター` / `保護者モニター` / `思い出モニター`
+- 募集枠: 5 名 (一般モニター 10 名とは別管理。`mon_parent` タグで識別)
+- 期間: 14 日間。SC-MONITOR シナリオに `mon_parent_active` タグを足して並走
+- 体験できること: 週次保護者レポート / 月初の思い出アルバム (期間中 1 回) / AI 添削無制限 / 音声 Drive アーカイブ
+- 完了後特典: 1 講座無料 + 保護者プラン半額 (3 ヶ月)
+- LINE Bot 側関数: `handleParentMonitorInquiry`, `joinParentMonitor`, `getActiveParentMonitorCount`, `isParentMonitorRecruitmentOpen`
+- `completeMonitor` は `mon_parent_active` も同時に剥がして `mon_parent_completed` を付与
+
 ## 4.1 Customer Portal & 解約フロー
 
 - **解約**: ユーザーが LINE で「解約」「キャンセル」と送信すると、`createPortalSession` が PURCHASES シートから Stripe customer_id を逆引きして Billing Portal URL を生成、案内する。
