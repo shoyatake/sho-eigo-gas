@@ -21,6 +21,16 @@ function doPost(e) {
     if (e && e.parameter && e.parameter.action === 'improvement') {
       return handleImprovementRequest(e);
     }
+    if (e && e.parameter && e.parameter.action === 'stripe_webhook') {
+      if (!verifyStripeWebhookUrlSecret(e)) {
+        return ContentService.createTextOutput(JSON.stringify({ok: false, reason: 'unauthorized'}))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var rawBody = (e.postData && e.postData.contents) || '';
+      var result = handleStripeWebhook(rawBody);
+      return ContentService.createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
     const body = JSON.parse(e.postData.contents);
     body.events.forEach(function(event) {
       if (event.type === 'follow')   handleFollow(event);
@@ -68,9 +78,47 @@ function renderDashboardResult(ok, message) {
 }
 
 function doGet(e) {
+  // Stripe Customer Portal (解約・カード変更)
+  if (e && e.parameter && e.parameter.action === 'portal') {
+    var puid = e.parameter.uid || '';
+    if (!puid) {
+      return HtmlService.createHtmlOutput('<h1>uid が必要です</h1><p>LINE で「解約」とお送りください。</p>');
+    }
+    var pres = createPortalSession(puid);
+    if (pres && pres.url) {
+      return HtmlService.createHtmlOutput(
+        '<script>window.location.replace("' + pres.url.replace(/"/g, '&quot;') + '")</script>'
+      );
+    }
+    var pmsg = (pres && pres.error === 'customer_not_found') ?
+      'お客様情報が見つかりませんでした。LINE で「解約」とお送りください。' :
+      'お客様ポータルの準備中にエラーが発生しました。';
+    return HtmlService.createHtmlOutput('<h1>準備中</h1><p>' + pmsg + '</p>');
+  }
+
+  // Stripe Checkout 起動 (next-step.html / payment/index.html から飛んでくる)
+  if (e && e.parameter && e.parameter.action === 'checkout') {
+    var plan = e.parameter.plan || '';
+    var uid  = e.parameter.uid || '';
+    if (!uid) {
+      return HtmlService.createHtmlOutput('<h1>uid が必要です</h1><p>LINE Bot のメッセージから「プラン選択」をタップしてください。</p>');
+    }
+    var result = createCheckoutSession(uid, plan);
+    if (result && result.url) {
+      return HtmlService.createHtmlOutput(
+        '<script>window.location.replace("' + result.url.replace(/"/g, '&quot;') + '")</script>'
+      );
+    }
+    var msg = (result && result.error === 'stripe_not_configured') ?
+      'プランの準備中です。少しお待ちください。' :
+      '決済画面の準備中にエラーが発生しました。少し時間をおいてからお試しください。';
+    return HtmlService.createHtmlOutput('<h1>準備中</h1><p>' + msg + '</p>');
+  }
+
+  // 既存: tracking redirect
   const userId    = e.parameter.uid  || '';
   const tag       = e.parameter.tag  || '';
-  const redirectUrl = e.parameter.url || 'https://sho-blog.com/all/trial/trial_day1.html';
+  const redirectUrl = e.parameter.url || 'https://sho-blog.com/trial/day1.html';
 
   if (userId && tag) {
     addTag(userId, tag);
@@ -92,6 +140,9 @@ function handleFollow(event) {
   const msg = buildMessage('SC-MAIN', 0, userId);
   if (msg) {
     sendPushMessage(userId, msg);
+    // 続けて sho の声で 1 通だけ音声を送る (オンボーディング体験の核)
+    Utilities.sleep(800);
+    sendWelcomeAudio(userId);
     updateUserStep(userId, 'SC-MAIN', 1, new Date());
   }
 }
@@ -128,11 +179,38 @@ function handleMessage(event) {
     }
   }
 
+  // 解約 / キャンセル: Stripe Customer Portal に誘導 (購入者のみ)
+  if (text.indexOf('解約') !== -1 || text.indexOf('キャンセル') !== -1 || text.toLowerCase() === 'cancel') {
+    if (hasTag(userId, 'purchased')) {
+      var portalUrl = (CONFIG.GAS_URL && CONFIG.GAS_URL.indexOf('http') === 0)
+        ? CONFIG.GAS_URL + '?action=portal&uid=' + encodeURIComponent(userId)
+        : 'https://sho-blog.com/next-step.html';
+      replyMessage(event.replyToken, '解約・カード情報の変更は下記のお客様ポータルから行えます。\n\n' + portalUrl);
+      return;
+    }
+  }
+
+  // 親子体験への導線
+  if (text.indexOf('親子') !== -1) {
+    replyMessage(event.replyToken, '▼ 親子体験 (音で残す成長のアルバム)\nhttps://sho-blog.com/trial/parent_lp.html\n\n小1〜高3 のお子さんと、2 日間で英語の音を変える体験ができます。');
+    return;
+  }
+
+  // UI/UX カスタマイズ相談 (保護者プラン契約者向け、人手で受ける)
+  if (text.indexOf('カスタマイズ') !== -1) {
+    var planTag = hasTag(userId, 'purchased_plan_parent') ? '保護者プラン契約者' :
+                  hasTag(userId, 'purchased') ? 'L プラン契約者' : '体験中';
+    addTag(userId, 'customize_request');
+    replyMessage(event.replyToken,
+      'カスタマイズのご相談ありがとうございます。\n\n専任アドバイザー (sho) が承りました。\n以下を簡単に教えていただけますか:\n\n1. お子さんの学年 (例: 小4)\n2. 一番気になっている英語の困りごと\n3. レポート / アルバムで「もっとこうしたい」点があれば\n\n3 営業日以内にご提案を返信します。');
+    return;
+  }
+
   const keywords = {
-    '体験':  '▼ 2日間無料体験はこちら\nhttps://sho-blog.com/all/trial/trial_day1.html',
-    'day1':  '▼ 体験Day 1\nhttps://sho-blog.com/all/trial/trial_day1.html',
-    'day2':  '▼ 体験Day 2\nhttps://sho-blog.com/all/trial/trial_day2.html',
-    'プラン': '▼ プランの詳細\nhttps://sho-blog.com/all/trial/next_step_day2.html',
+    '体験':  '▼ 2日間無料体験はこちら\nhttps://sho-blog.com/trial/day1.html',
+    'day1':  '▼ 体験Day 1\nhttps://sho-blog.com/trial/day1.html',
+    'day2':  '▼ 体験Day 2\nhttps://sho-blog.com/trial/day2.html',
+    'プラン': '▼ プランの詳細\nhttps://sho-blog.com/next-step.html',
   };
   const lowerText = text.toLowerCase();
   for (const key in keywords) {
@@ -328,43 +406,47 @@ function hasAnyReadTag(userId) {
 const SCENARIOS_DATA = {
   'SC-MAIN': [
     { stepNum: 0, delayDays: 0, sendHour: 0, trackingTag: 'read_s0',
-      message: 'はじめまして、翔也です。\n\nsho eigoのLINEに\n来てくれてありがとうございます。\n\n最初に一つだけ聞かせてください。\n\n「water」って頭の中でどう聞こえますか？\n\n「ウォーター」と浮かぶなら\nそれが今日の話の出発点です。\n\nwaterの本物の音は「ワラ」です。\n\n▼ 続きを無料体験で\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+      message: 'はじめまして、翔也です。\n\nsho eigoのLINEに\n来てくれてありがとうございます。\n\n最初に一つだけ聞かせてください。\n\n「water」って頭の中でどう聞こえますか？\n\n「ウォーター」と浮かぶなら\nそれが今日の話の出発点です。\n\nwaterの本物の音は「ワラ」です。\n\n▼ 続きを無料体験で\nhttps://sho-blog.com/trial/day1.html' },
     { stepNum: 1, delayDays: 1, sendHour: 6, trackingTag: 'read_s1',
-      message: 'おはようございます。\n\nDay 2 が今日から始められます。\n\n昨日と同じ文章をもう一度聴いたとき\n「あ、さっきより聴こえる」\nという感覚が来るかもしれません。\n\n▼ Day 2 はこちら\nhttps://sho-blog.com/all/trial/trial_day2.html' },
+      message: 'おはようございます。\n\nDay 2 が今日から始められます。\n\n昨日と同じ文章をもう一度聴いたとき\n「あ、さっきより聴こえる」\nという感覚が来るかもしれません。\n\n▼ Day 2 はこちら\nhttps://sho-blog.com/trial/day2.html' },
     { stepNum: 2, delayDays: 2, sendHour: 8, trackingTag: 'read_s2', sendSurvey: true,
       message: '少しだけ教えていただけますか。\n\nあなたのことを知ることで\nお届けする情報をより役立てます。\n\n下のボタンからお答えください。' },
     { stepNum: 3, delayDays: 5, sendHour: 8, trackingTag: 'read_s3',
-      message: '声に出してみてください。\n\n「turn it off」\n\nこれ、実は「ターニラフ」と読みます。\n単語がつながって全然別の音になる。\nこれがLinkingという現象です。\n\n▼ 体験で音の違いを確かめる\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+      message: '声に出してみてください。\n\n「turn it off」\n\nこれ、実は「ターニラフ」と読みます。\n単語がつながって全然別の音になる。\nこれがLinkingという現象です。\n\n▼ 体験で音の違いを確かめる\nhttps://sho-blog.com/trial/day1.html' },
   ],
   'SC-PARENT': [
-    { stepNum: 0, delayDays: 0, sendHour: 8, trackingTag: 'read_p1',
-      message: 'はじめまして、翔也です。\n\n「塾に通わせているのに\nリスニングが伸びない」\n\nそういうお話をよく聞きます。\n\n実はこれ、塾の問題でも\nお子さんの頭の問題でもないんです。\n\n▼ この話の続き\nhttps://sho-blog.com/all/trial/trial_day1.html' },
-    { stepNum: 1, delayDays: 3, sendHour: 8, trackingTag: 'read_p2',
-      message: 'お子さんの学習、続いているか気になりませんか。\n\nsho eigoの保護者プランには\n毎週日曜日に「学習レポート」が届く仕組みがあります。\n\n▼ 保護者プランについて\nhttps://sho-blog.com/all/trial/next_step_day2.html' },
+    { stepNum: 0, delayDays: 0, sendHour: 8, trackingTag: 'read_p0',
+      message: 'はじめまして、翔也です。\n\n親子体験を試してくれてありがとうございます。\n\nお子さんの英語が変わる音を、アルバムに残す。\nそんなコンセプトで作っています。\n\n明日から 5 日間にわたって、保護者プランの「見本」を 3 通お届けします。\n\n▼ 親子体験 (まだの方)\nhttps://sho-blog.com/trial/parent_lp.html' },
+    { stepNum: 1, delayDays: 1, sendHour: 7, trackingTag: 'read_p1',
+      message: '【週次レポート見本】\n\n〇〇くんの今週の英語の音\n（保護者プランで毎週日曜の朝に届くレポートの見本です）\n\n✨ 今週の変化\n・water の発音が「ウォーター」→「ワラ」に近づいてきました\n・連続発音 (Linking) を 3 回試して、3 回目で成功\n・録音時間: 累計 47 分\n\n🎵 今週の声のハイライト\n日曜日の朝に録音した「I have a little brother」\nリズムが自然になっています。\n\n📝 来週のおすすめ\nシャドーイング訓練講座の Day 3-4 を続けてみましょう。\nFlap T が中心のレッスンです。\n\n―――――――――――――――――――\nこれは「保護者プラン」に加入すると毎週届くレポートの見本です。実際のレポートはお子さんの学習データから自動生成されます。' },
+    { stepNum: 2, delayDays: 2, sendHour: 8, trackingTag: 'read_p2',
+      message: '【月初の思い出アルバム見本】\n\n〇〇くん 今月のアルバム\n（保護者プランで毎月 1 日に届くアルバムの見本です）\n\n🎵 今月の声 (1 日 vs 30 日)\n[音声リンク 2 つを想定]\n\n📊 30 日間の歩み\n・完了レッスン: 28 日 / 30 日\n・録音時間: 累計 4 時間 12 分\n・一番難しかった音: Flap T (ワラ・ベラ)\n・一番自信がついた音: Linking\n\n✏️ エピソード\n初めてレッスンを「もう 1 回やる」と言った日。そこから音が変わり始めました。お母さんに自分から「今日の英語聴いて」と言うように。\n\n―――――――――――――――――――\nこれは「保護者プラン」に加入すると毎月届くアルバムの見本です。お子さんの実際の録音と、振り返りが含まれます。' },
+    { stepNum: 3, delayDays: 2, sendHour: 9, trackingTag: 'read_p3',
+      message: '体験から 5 日たちました。\nお子さんと一緒に聴いた録音は、まだ覚えていますか？\n\n毎日続けると、毎月こうなります。\n・30 日後 → アルバム 1 冊\n・6 ヶ月後 → アルバム 6 冊\n・1 年後 → 子どもの声の歴史\n\n▼ 保護者プランで続ける\nhttps://sho-blog.com/next-step.html?from=parent\n\n▼ L1〜L3 で続ける (レポート・アルバムなし)\nhttps://sho-blog.com/next-step.html\n\n迷ったら、最初は L3 (¥3,980) で始めて、あとから保護者プランに切り替えることもできます。' },
   ],
   'SC-STUDENT': [
     { stepNum: 0, delayDays: 0, sendHour: 8, trackingTag: 'read_st1',
-      message: '英検のリスニングで\n「知ってるはずの単語が聴こえない」\n\nこれ、単語力の問題じゃないんです。\n\n音の設定がずれているだけ。\n音を直せば、知っている単語が聴こえます。\n\n▼ 体験で確認する\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+      message: '英検のリスニングで\n「知ってるはずの単語が聴こえない」\n\nこれ、単語力の問題じゃないんです。\n\n音の設定がずれているだけ。\n音を直せば、知っている単語が聴こえます。\n\n▼ 体験で確認する\nhttps://sho-blog.com/trial/day1.html' },
     { stepNum: 1, delayDays: 3, sendHour: 8, trackingTag: 'read_st2',
-      message: '音の土台を作った人の\n半年後・1年後の伸び方は変わります。\n\n遠回りに見えて一番近道です。\n\n▼ 体験で音の基礎を確かめる\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+      message: '音の土台を作った人の\n半年後・1年後の伸び方は変わります。\n\n遠回りに見えて一番近道です。\n\n▼ 体験で音の基礎を確かめる\nhttps://sho-blog.com/trial/day1.html' },
   ],
   'SC-ADULT': [
     { stepNum: 0, delayDays: 0, sendHour: 8, trackingTag: 'read_a1',
-      message: '1日15〜20分あれば変わります。\n\n通勤の電車の中、昼休みの15分。\n音を体に入れる練習は\n机に向かわなくてもできます。\n\n▼ 20分で体験できます\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+      message: '1日15〜20分あれば変わります。\n\n通勤の電車の中、昼休みの15分。\n音を体に入れる練習は\n机に向かわなくてもできます。\n\n▼ 20分で体験できます\nhttps://sho-blog.com/trial/day1.html' },
     { stepNum: 1, delayDays: 3, sendHour: 8, trackingTag: 'read_a2',
-      message: '「ある日、映画の台詞が聴こえた」\n\n音の基礎ができた人がよく言う言葉です。\n\nその日が来るのを楽しみに続けてほしいです。\n\n▼ 体験はこちら\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+      message: '「ある日、映画の台詞が聴こえた」\n\n音の基礎ができた人がよく言う言葉です。\n\nその日が来るのを楽しみに続けてほしいです。\n\n▼ 体験はこちら\nhttps://sho-blog.com/trial/day1.html' },
   ],
   'SC-DORMANT': [
     { stepNum: 0, delayDays: 0, sendHour: 8, trackingTag: null, sendQuiz: true,
       message: '突然ですが、クイズです。\n\n「better」の本物の発音はどちら？' },
     { stepNum: 1, delayDays: 7, sendHour: 8, trackingTag: 'read_dormant',
-      message: 'お久しぶりです。\n\n気が向いたときに戻ってきてください。\n\n▼ いつでも体験できます\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+      message: 'お久しぶりです。\n\n気が向いたときに戻ってきてください。\n\n▼ いつでも体験できます\nhttps://sho-blog.com/trial/day1.html' },
   ],
   'SC-MONITOR': [
     { stepNum: 0, delayDays: 0, sendHour: 0, trackingTag: 'read_m0',
-      message: 'モニターに参加してくれてありがとうございます。\n翔也です。\n\n10名限定の枠に\n入っていただきました。\n\n■ お渡しするもの\n・1講座 無料プレゼント（参加者全員）\n・口コミを投稿してくれた方には\n　次回サブスク 半額（3ヶ月間）\n\n■ お願いしたいこと\n・14日間、Day 1とDay 2を実際に体験してください\n・5日目と最終日に簡単なアンケートに答えてください\n・気づいたことがあれば「フィードバック」と送るか\n　専用ダッシュボードから提出してください\n\n▼ あなた専用ダッシュボード\n{{DASHBOARD_URL}}\n\nまずは Day 1 から始めましょう。\n\n▼ Day 1 はこちら\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+      message: 'モニターに参加してくれてありがとうございます。\n翔也です。\n\n10名限定の枠に\n入っていただきました。\n\n■ お渡しするもの\n・1講座 無料プレゼント（参加者全員）\n・口コミを投稿してくれた方には\n　次回サブスク 半額（3ヶ月間）\n\n■ お願いしたいこと\n・14日間、Day 1とDay 2を実際に体験してください\n・5日目と最終日に簡単なアンケートに答えてください\n・気づいたことがあれば「フィードバック」と送るか\n　専用ダッシュボードから提出してください\n\n▼ あなた専用ダッシュボード\n{{DASHBOARD_URL}}\n\nまずは Day 1 から始めましょう。\n\n▼ Day 1 はこちら\nhttps://sho-blog.com/trial/day1.html' },
     { stepNum: 1, delayDays: 1, sendHour: 8, trackingTag: 'read_m1',
-      message: 'おはようございます、翔也です。\n\n昨日のDay 1、いかがでしたか。\n\n今日からDay 2 に進めます。\n音の変化が少しずつ\n見えてくる頃です。\n\n▼ Day 2 はこちら\nhttps://sho-blog.com/all/trial/trial_day2.html' },
+      message: 'おはようございます、翔也です。\n\n昨日のDay 1、いかがでしたか。\n\n今日からDay 2 に進めます。\n音の変化が少しずつ\n見えてくる頃です。\n\n▼ Day 2 はこちら\nhttps://sho-blog.com/trial/day2.html' },
     { stepNum: 2, delayDays: 4, sendHour: 8, trackingTag: 'read_m2', sendMonitorMidSurvey: true,
       message: 'モニター開始から5日目です。\n\nここまでの感触を\n簡単に教えてください。\n\n下のボタンから1タップでお答えいただけます。\n\n細かい感想は「フィードバック」と\n送っていただければ\n次のメッセージを記録します。' },
     { stepNum: 3, delayDays: 5, sendHour: 8, trackingTag: 'read_m3',
@@ -374,11 +456,11 @@ const SCENARIOS_DATA = {
   ],
   'SC-DELETE-NOTICE': [
     { stepNum: 0, delayDays: 0, sendHour: 9, trackingTag: 'read_del1', skipIfTag: 'reactivated',
-      message: 'お久しぶりです、翔也です。\n\n長くご連絡が取れていないため\n7日後にこのリストから\n自動的に登録解除させていただきます。\n\nもしまだ続けたい気持ちがあれば\n下のリンクから一度反応してください。\n反応があれば解除を取り消します。\n\n▼ 続けたい方はこちら\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+      message: 'お久しぶりです、翔也です。\n\n長くご連絡が取れていないため\n7日後にこのリストから\n自動的に登録解除させていただきます。\n\nもしまだ続けたい気持ちがあれば\n下のリンクから一度反応してください。\n反応があれば解除を取り消します。\n\n▼ 続けたい方はこちら\nhttps://sho-blog.com/trial/day1.html' },
     { stepNum: 1, delayDays: 3, sendHour: 9, trackingTag: 'read_del2', skipIfTag: 'reactivated',
-      message: '先日のメッセージ、届いていますか。\n\nあと4日でこのリストから\n自動解除されます。\n\n最後にもう一度だけ\nお声がけしました。\n\n▼ もう一度試してみる\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+      message: '先日のメッセージ、届いていますか。\n\nあと4日でこのリストから\n自動解除されます。\n\n最後にもう一度だけ\nお声がけしました。\n\n▼ もう一度試してみる\nhttps://sho-blog.com/trial/day1.html' },
     { stepNum: 2, delayDays: 3, sendHour: 9, trackingTag: 'read_del3', skipIfTag: 'reactivated',
-      message: '明日、自動的に登録解除します。\n\n今までありがとうございました。\n\nもし「やっぱり続けたい」と\n思ったら明日までに\n下のリンクから反応してください。\n\n▼ 最後のチャンス\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+      message: '明日、自動的に登録解除します。\n\n今までありがとうございました。\n\nもし「やっぱり続けたい」と\n思ったら明日までに\n下のリンクから反応してください。\n\n▼ 最後のチャンス\nhttps://sho-blog.com/trial/day1.html' },
     { stepNum: 3, delayDays: 1, sendHour: 9, trackingTag: null, skipIfTag: 'reactivated',
       executeDeletion: true, message: null },
   ],
@@ -781,4 +863,277 @@ function getMonitorReport() {
   Logger.log('フィードバック: ' + fbCount + ' 件');
   Logger.log('--- アクティブモニター ---');
   activeList.forEach(function(s){ Logger.log(s); });
+}
+
+// ============================================================
+// v1.1 拡張: Stripe / Welcome audio / ERROR_LOG / 運用ヘルパー
+// CLAUDE.md 凍結ルール準拠: 新 cron / AI 添削 / モニター変種は未追加。
+// ============================================================
+
+const PRO_PLANS = {
+  l1:     { price_jpy: 2980, label: 'L1 Foundation',     stripe_price_id_prop: 'STRIPE_PRICE_L1' },
+  l2:     { price_jpy: 3480, label: 'L2 Intermediate',   stripe_price_id_prop: 'STRIPE_PRICE_L2' },
+  l3:     { price_jpy: 3980, label: 'L3 Advanced',       stripe_price_id_prop: 'STRIPE_PRICE_L3' },
+  parent: { price_jpy: 4980, label: '保護者プラン',       stripe_price_id_prop: 'STRIPE_PRICE_PARENT' }
+};
+
+function getProp(name) {
+  return PropertiesService.getScriptProperties().getProperty(name) || '';
+}
+
+// ----------------------------------------
+// Welcome audio (handleFollow 直後)
+// ----------------------------------------
+function sendWelcomeAudio(userId) {
+  if (!userId) return;
+  var url = getProp('WELCOME_AUDIO_URL') || 'https://sho-blog.com/trial/audio/sho/day1_step00_ようこそ.mp3';
+  var durationMs = parseInt(getProp('WELCOME_AUDIO_DURATION_MS') || '15000', 10);
+  try {
+    UrlFetchApp.fetch(LINE_API + '/push', {
+      method: 'post',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+      payload: JSON.stringify({
+        to: userId,
+        messages: [{ type: 'audio', originalContentUrl: url, duration: durationMs }]
+      }),
+      muteHttpExceptions: true
+    });
+    addTag(userId, 'welcome_audio_sent');
+  } catch(e) { Logger.log('sendWelcomeAudio error: ' + e); }
+}
+
+// ----------------------------------------
+// Stripe Checkout
+// ----------------------------------------
+function createCheckoutSession(userId, plan) {
+  if (!userId || !plan) return { error: 'missing_params' };
+  if (!PRO_PLANS[plan]) return { error: 'unknown_plan' };
+  var stripeKey = getProp('STRIPE_SECRET_KEY');
+  if (!stripeKey) return { error: 'stripe_not_configured' };
+  var priceId = getProp(PRO_PLANS[plan].stripe_price_id_prop);
+  if (!priceId) return { error: 'price_id_missing' };
+
+  var payload = {
+    'mode': 'subscription',
+    'success_url': 'https://sho-blog.com/payment/success.html?session_id={CHECKOUT_SESSION_ID}',
+    'cancel_url':  'https://sho-blog.com/payment/cancel.html',
+    'client_reference_id': userId,
+    'line_items[0][price]': priceId,
+    'line_items[0][quantity]': 1,
+    'metadata[lineUserId]': userId,
+    'metadata[plan]': plan,
+    'subscription_data[metadata][lineUserId]': userId,
+    'subscription_data[metadata][plan]': plan,
+    'allow_promotion_codes': 'true'
+  };
+  var formData = Object.keys(payload).map(function(k){
+    return encodeURIComponent(k) + '=' + encodeURIComponent(payload[k]);
+  }).join('&');
+
+  var resp = UrlFetchApp.fetch('https://api.stripe.com/v1/checkout/sessions', {
+    method: 'post',
+    headers: { 'Authorization': 'Bearer ' + stripeKey, 'Content-Type': 'application/x-www-form-urlencoded' },
+    payload: formData,
+    muteHttpExceptions: true
+  });
+  if (resp.getResponseCode() !== 200) {
+    Logger.log('Stripe checkout failed: ' + resp.getResponseCode() + ' ' + resp.getContentText().substr(0, 300));
+    logError('createCheckoutSession', 'HTTP ' + resp.getResponseCode(), { plan: plan });
+    return { error: 'stripe_api_error', status: resp.getResponseCode() };
+  }
+  try { var data = JSON.parse(resp.getContentText()); return { url: data.url, id: data.id }; }
+  catch(e) { return { error: 'stripe_parse_error' }; }
+}
+
+// ----------------------------------------
+// Stripe Webhook (URL secret + Stripe API 再 GET の 2 段認証)
+// GAS doPost は HTTP ヘッダを取れないため HMAC 検証は使わない
+// ----------------------------------------
+function verifyStripeWebhookUrlSecret(e) {
+  var urlSecret = getProp('STRIPE_WEBHOOK_URL_SECRET');
+  if (!urlSecret) return false;
+  return ((e && e.parameter && e.parameter.secret) || '') === urlSecret;
+}
+
+function reverifyStripeObject(objType, objId) {
+  if (!objId) return null;
+  var key = getProp('STRIPE_SECRET_KEY');
+  if (!key) return null;
+  var path = (objType === 'session') ? '/v1/checkout/sessions/' : '/v1/subscriptions/';
+  var resp = UrlFetchApp.fetch('https://api.stripe.com' + path + objId, {
+    method: 'get',
+    headers: { 'Authorization': 'Bearer ' + key },
+    muteHttpExceptions: true
+  });
+  if (resp.getResponseCode() !== 200) {
+    logError('reverifyStripeObject', 'HTTP ' + resp.getResponseCode(), { objType: objType, objId: objId });
+    return null;
+  }
+  try { return JSON.parse(resp.getContentText()); } catch(e) { return null; }
+}
+
+function handleStripeWebhook(rawBody) {
+  var event;
+  try { event = JSON.parse(rawBody); } catch(e) { return { ok: false, reason: 'parse_error' }; }
+  if (event.type === 'checkout.session.completed') {
+    var s = event.data && event.data.object;
+    if (!s || !s.id) return { ok: false, reason: 'no_session' };
+    var verified = reverifyStripeObject('session', s.id);
+    if (!verified || verified.payment_status !== 'paid') {
+      logError('handleStripeWebhook', 'reverify failed', { sessionId: s.id });
+      return { ok: false, reason: 'reverify_failed' };
+    }
+    var lineUid = (verified.metadata && verified.metadata.lineUserId) || verified.client_reference_id || '';
+    var plan = (verified.metadata && verified.metadata.plan) || '';
+    if (lineUid) {
+      addTag(lineUid, 'purchased');
+      if (plan) addTag(lineUid, 'purchased_plan_' + plan);
+      sendPushMessage(lineUid, 'ご登録ありがとうございます！\n' + (PRO_PLANS[plan] ? PRO_PLANS[plan].label : 'プラン') + 'へようこそ。\n今日からよろしくお願いします。');
+    }
+    logCheckoutSuccess(verified);
+  } else if (event.type === 'customer.subscription.deleted') {
+    var sub = event.data && event.data.object;
+    if (sub && sub.id) {
+      var verifiedSub = reverifyStripeObject('subscription', sub.id);
+      if (verifiedSub && verifiedSub.metadata && verifiedSub.metadata.lineUserId) {
+        var uid = verifiedSub.metadata.lineUserId;
+        removeTag(uid, 'purchased');
+        ['l1','l2','l3','parent'].forEach(function(p){ removeTag(uid, 'purchased_plan_' + p); });
+      }
+    }
+  } else if (event.type === 'charge.refunded' || event.type === 'invoice.payment_failed') {
+    var obj = event.data && event.data.object;
+    var customerId = obj && obj.customer;
+    if (customerId) {
+      var uid2 = findLineUidByStripeCustomer(customerId);
+      if (uid2) {
+        removeTag(uid2, 'purchased');
+        ['l1','l2','l3','parent'].forEach(function(p){ removeTag(uid2, 'purchased_plan_' + p); });
+      }
+    }
+  }
+  return { ok: true };
+}
+
+function logCheckoutSuccess(session) {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var sheet = ss.getSheetByName('PURCHASES') || ss.insertSheet('PURCHASES');
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['lineUserId','plan','sessionId','customerId','amount','currency','completedAt']);
+    sheet.getRange(1,1,1,7).setBackground('#1a2d45').setFontColor('#fff').setFontWeight('bold');
+  }
+  sheet.appendRow([
+    (session.metadata && session.metadata.lineUserId) || session.client_reference_id || '',
+    (session.metadata && session.metadata.plan) || '',
+    session.id || '',
+    session.customer || '',
+    session.amount_total || '',
+    session.currency || 'jpy',
+    new Date()
+  ]);
+}
+
+function findLineUidByStripeCustomer(customerId) {
+  if (!customerId) return null;
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var sheet = ss.getSheetByName('PURCHASES');
+  if (!sheet) return null;
+  var data = sheet.getDataRange().getValues();
+  for (var i = data.length - 1; i >= 1; i--) {
+    if (data[i][3] === customerId) return data[i][0];
+  }
+  return null;
+}
+
+// ----------------------------------------
+// Stripe Customer Portal (解約・カード変更)
+// ----------------------------------------
+function createPortalSession(userId) {
+  if (!userId) return { error: 'missing_uid' };
+  var key = getProp('STRIPE_SECRET_KEY');
+  if (!key) return { error: 'stripe_not_configured' };
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var sheet = ss.getSheetByName('PURCHASES');
+  if (!sheet) return { error: 'no_purchase_record' };
+  var data = sheet.getDataRange().getValues();
+  var customerId = '';
+  for (var i = data.length - 1; i >= 1; i--) {
+    if (data[i][0] === userId && data[i][3]) { customerId = data[i][3]; break; }
+  }
+  if (!customerId) return { error: 'customer_not_found' };
+  var resp = UrlFetchApp.fetch('https://api.stripe.com/v1/billing_portal/sessions', {
+    method: 'post',
+    headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/x-www-form-urlencoded' },
+    payload: 'customer=' + encodeURIComponent(customerId) + '&return_url=' + encodeURIComponent('https://sho-blog.com/next-step.html'),
+    muteHttpExceptions: true
+  });
+  if (resp.getResponseCode() !== 200) {
+    logError('createPortalSession', 'HTTP ' + resp.getResponseCode(), { userId: userId });
+    return { error: 'stripe_api_error' };
+  }
+  try { return { url: JSON.parse(resp.getContentText()).url }; }
+  catch(e) { return { error: 'parse_error' }; }
+}
+
+// ----------------------------------------
+// ERROR_LOG / safeFetch
+// ----------------------------------------
+function logError(source, message, payload) {
+  try {
+    var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+    var sheet = ss.getSheetByName('ERROR_LOG') || ss.insertSheet('ERROR_LOG');
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(['receivedAt','source','message','payload']);
+      sheet.getRange(1,1,1,4).setBackground('#1a2d45').setFontColor('#fff').setFontWeight('bold');
+    }
+    sheet.appendRow([new Date(), source || '', String(message || '').substr(0, 1000), payload ? JSON.stringify(payload).substr(0, 1500) : '']);
+  } catch(e) { Logger.log('logError itself failed: ' + e); }
+}
+
+// ----------------------------------------
+// 運用ヘルパー (Apps Script Editor から手動実行)
+// ----------------------------------------
+function _seedTestData() {
+  setupSheets();
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var usersSheet = ss.getSheetByName('USERS');
+  var tagsSheet = ss.getSheetByName('TAGS');
+  var now = new Date();
+  var seed = [
+    ['Useed_001','テスト 個人A','SC-MAIN', 1, new Date(now.getTime() - 1*86400000), new Date(now.getTime() - 2*86400000), ['src_line','read_s0']],
+    ['Useed_002','テスト 個人B','SC-MAIN', 2, new Date(now.getTime() - 2*86400000), new Date(now.getTime() - 4*86400000), ['src_line','read_s0','read_s1']],
+    ['Useed_003','テスト 保護者C','SC-PARENT', 1, new Date(now.getTime() - 1*86400000), new Date(now.getTime() - 5*86400000), ['src_line','attr_parent','read_p0','purchased','purchased_plan_parent']],
+  ];
+  seed.forEach(function(u) {
+    usersSheet.appendRow([u[0], u[1], u[2], u[3], u[4], u[5]]);
+    u[6].forEach(function(t) { tagsSheet.appendRow([u[0], t, new Date(now.getTime() - Math.random() * 5 * 86400000)]); });
+  });
+  Logger.log('seed 完了 (3 ユーザー)。purge は _purgeTestData()');
+}
+
+function _purgeTestData() {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  ['USERS','TAGS','CLICK_LOG','FEEDBACK_LOG','PURCHASES'].forEach(function(name) {
+    var sheet = ss.getSheetByName(name); if (!sheet) return;
+    var data = sheet.getDataRange().getValues();
+    for (var i = data.length - 1; i >= 1; i--) {
+      if (String(data[i][0] || '').indexOf('Useed_') === 0) sheet.deleteRow(i + 1);
+    }
+  });
+  Logger.log('purge 完了');
+}
+
+function checkProductionReadiness() {
+  var required = ['STRIPE_SECRET_KEY','STRIPE_WEBHOOK_URL_SECRET','STRIPE_PRICE_L1','STRIPE_PRICE_L2','STRIPE_PRICE_L3','STRIPE_PRICE_PARENT'];
+  var props = PropertiesService.getScriptProperties();
+  var missing = required.filter(function(k){ return !props.getProperty(k); });
+  var triggers = ScriptApp.getProjectTriggers().map(function(t){ return t.getHandlerFunction(); });
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var requiredSheets = ['USERS','TAGS','CLICK_LOG','SURVEY_LOG','FEEDBACK_LOG','MONITORS'];
+  var missingSheets = requiredSheets.filter(function(s){ return !ss.getSheetByName(s); });
+  Logger.log('=== Production Readiness Check ===');
+  Logger.log('Missing properties: ' + (missing.length === 0 ? 'NONE' : missing.join(', ')));
+  Logger.log('Triggers: ' + (triggers.indexOf('checkAndSendScheduled') === -1 ? 'MISSING checkAndSendScheduled' : 'OK'));
+  Logger.log('Missing sheets: ' + (missingSheets.length === 0 ? 'NONE' : missingSheets.join(', ')));
+  Logger.log('Ready: ' + (missing.length === 0 && triggers.indexOf('checkAndSendScheduled') !== -1 && missingSheets.length === 0 ? 'YES ✅' : 'NO ❌'));
 }
