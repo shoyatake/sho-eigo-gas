@@ -187,6 +187,14 @@ function sendWelcomeAudio(userId) {
 
 function handleMessage(event) {
   const userId = event.source.userId;
+
+  // 音声メッセージ受信 (アフター録音 / 子どもの音読 など)
+  // 「音声学習は、思い出になる」: 録音そのものは LINE に残る、こちらは件数を覚える
+  if (event.message && event.message.type === 'audio') {
+    handleIncomingAudio(event);
+    return;
+  }
+
   const text   = (event.message && event.message.text) || '';
 
   // AI 添削モード (SC-MAIN step 4 後に ai_writing_pending を付与してある)
@@ -254,8 +262,12 @@ function handleMessage(event) {
     'day1':  '▼ 体験Day 1\nhttps://sho-blog.com/all/trial/trial_day1.html',
     'day2':  '▼ 体験Day 2\nhttps://sho-blog.com/all/trial/trial_day2.html',
     'プラン': '▼ Pro プランの詳細\nhttps://sho-blog.com/payment/',
-    'pro':   '▼ Pro プランの詳細\nhttps://sho-blog.com/payment/',
   };
+  // "pro" は単語単位で一致したときだけ反応 (approach 等の誤マッチを避ける)
+  if (/(^|[^a-z])pro([^a-z]|$)/i.test(text)) {
+    replyMessage(event.replyToken, '▼ Pro プランの詳細\nhttps://sho-blog.com/payment/');
+    return;
+  }
   const lowerText = text.toLowerCase();
   for (const key in keywords) {
     if (lowerText.indexOf(key) !== -1) {
@@ -1565,6 +1577,28 @@ function weeklyParentReport() {
 }
 
 // ----------------------------------------
+// 音声メッセージ受信 (アフター録音 / 子どもの音読を残す)
+// LINE のメッセージ ID と件数だけ FEEDBACK_LOG に記録。本体音源は LINE トークに残る。
+// 後日 Drive/Cloud Storage に保存する場合は handleIncomingAudio 内で
+//   UrlFetchApp.fetch('https://api-data.line.me/v2/bot/message/' + msgId + '/content', ...)
+// で取得して保存する処理を足す。
+// ----------------------------------------
+function handleIncomingAudio(event) {
+  var userId = event.source.userId;
+  var msgId = (event.message && event.message.id) || '';
+  var duration = (event.message && event.message.duration) || 0;
+  saveFeedback(userId, 'audio', 'msgId=' + msgId + ' duration=' + duration + 'ms');
+  // タグで件数管理 (1 件目で audio_received、累計は monthlyParentAlbum で集計)
+  if (!hasTag(userId, 'audio_received')) addTag(userId, 'audio_received');
+  // 保護者プラン契約者には特別な返信、それ以外には軽い感謝
+  if (hasTag(userId, 'purchased_plan_family')) {
+    replyMessage(event.replyToken, '音声を受け取りました。\nそのまま LINE トークに残るので、後から振り返れます。\n\n月初の「思い出アルバム」にもこの音声が反映されます。');
+  } else {
+    replyMessage(event.replyToken, '音声ありがとうございます。\nしっかり聴かせていただきます。');
+  }
+}
+
+// ----------------------------------------
 // 友達招待コード (Pro 契約者向け)
 // 仕組み:
 //   - userId から決定論的に 6 文字コードを派生
@@ -1729,22 +1763,27 @@ function monthlyParentAlbum() {
   }
 
   var aiHighlights = {};  // userId → [{ text, day }]
+  var audioCountByUser = {};  // userId → audio message count
   var fbSheet = ss.getSheetByName('FEEDBACK_LOG');
   if (fbSheet) {
     var fbRows = fbSheet.getDataRange().getValues();
     for (var j = 1; j < fbRows.length; j++) {
-      if (fbRows[j][1] !== 'ai_writing') continue;
       var fAt = fbRows[j][3] ? new Date(fbRows[j][3]) : null;
       if (!fAt || fAt < since) continue;
       var fUid = fbRows[j][0];
-      var content = fbRows[j][2] || '';
-      var firstLine = content.split('\n')[1] || content.split('\n')[0] || '';  // "原文:" の次の行
-      aiHighlights[fUid] = aiHighlights[fUid] || [];
-      if (aiHighlights[fUid].length < 3) {
-        aiHighlights[fUid].push({
-          text: firstLine.substr(0, 60),
-          day: Utilities.formatDate(fAt, 'JST', 'MM/dd')
-        });
+      var fType = fbRows[j][1];
+      if (fType === 'ai_writing') {
+        var content = fbRows[j][2] || '';
+        var firstLine = content.split('\n')[1] || content.split('\n')[0] || '';
+        aiHighlights[fUid] = aiHighlights[fUid] || [];
+        if (aiHighlights[fUid].length < 3) {
+          aiHighlights[fUid].push({
+            text: firstLine.substr(0, 60),
+            day: Utilities.formatDate(fAt, 'JST', 'MM/dd')
+          });
+        }
+      } else if (fType === 'audio') {
+        audioCountByUser[fUid] = (audioCountByUser[fUid] || 0) + 1;
       }
     }
   }
@@ -1758,6 +1797,7 @@ function monthlyParentAlbum() {
     var totalClicks = clickByUser[userId] || 0;
     var peak = clickPeakByUser[userId];
     var highlights = aiHighlights[userId] || [];
+    var audioCount = audioCountByUser[userId] || 0;
     var displayName = users[k][1] || '保護者';
     var monthLabel = Utilities.formatDate(new Date(Date.now() - 24 * 60 * 60 * 1000), 'JST', 'yyyy 年 M 月');
 
@@ -1769,11 +1809,12 @@ function monthlyParentAlbum() {
       '今月の事実:\n' +
       '- 配信教材アクセス回数: ' + totalClicks + ' 回\n' +
       (peak ? '- 一番触れた日: ' + peak.day + ' (' + peak.count + ' 回)\n' : '') +
-      '- AI 添削で書いた英文 (抜粋): ' + (highlights.length ? highlights.map(function(h){ return '「' + h.text + '」(' + h.day + ')'; }).join(', ') : 'なし') + '\n\n' +
+      '- AI 添削で書いた英文 (抜粋): ' + (highlights.length ? highlights.map(function(h){ return '「' + h.text + '」(' + h.day + ')'; }).join(', ') : 'なし') + '\n' +
+      '- 送ってくれた音声: ' + audioCount + ' 件\n\n' +
       '形式 (450 字以内、日本語、保護者目線、温度感重視):\n' +
       '・冒頭: 「' + monthLabel + 'の音声アルバム」のような 1 行タイトル\n' +
       '・1 段落目: 今月の様子を一言で。数字は 1〜2 個さりげなく。\n' +
-      '・2 段落目: 抜粋した英文があれば、その 1 つを引用しつつ、書いた瞬間のお子さんを保護者に想像させる文。なければ 1 行で省略。\n' +
+      '・2 段落目: 抜粋した英文があれば、その 1 つを引用しつつ、書いた瞬間のお子さんを保護者に想像させる文。音声を送ってくれた回数があれば、その音声が「いまも LINE に残っている」ことに触れる。なければ 1 行で省略。\n' +
       '・3 段落目: 来月への並走の言葉。1 文だけ。\n' +
       '・末尾: 「— sho より」と添える。\n\n' +
       '禁則: 「成長」「上達」を 2 回以上使わない。代わりに「触れた」「重ねた」「向き合った」「残った」を使う。';
@@ -1784,7 +1825,9 @@ function monthlyParentAlbum() {
       albumText =
         monthLabel + 'の音声アルバム\n\n' +
         'お子さんは今月、' + totalClicks + ' 回 sho の配信に触れました。\n' +
-        (peak ? '一番熱心だった日は ' + peak.day + ' でした。\n\n' : '\n') +
+        (peak ? '一番熱心だった日は ' + peak.day + ' でした。\n' : '') +
+        (audioCount > 0 ? '送ってくれた音声: ' + audioCount + ' 件 (LINE トークに残っています)\n' : '') +
+        '\n' +
         (highlights.length ? '書いた英文の中から:\n「' + highlights[0].text + '」(' + highlights[0].day + ')\n\n' : '') +
         '来月もこの時間が、後から振り返れる思い出として残るように、並走します。\n\n— sho より';
     } else {
