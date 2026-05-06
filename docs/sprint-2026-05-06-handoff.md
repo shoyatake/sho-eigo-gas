@@ -85,6 +85,7 @@ clasp deploy 後、Apps Script コンソール → **プロジェクトの設定
 | `STRIPE_PRICE_PERSONAL` | 1.1 の個人 Pro Price ID | ✓ |
 | `STRIPE_PRICE_FAMILY` | 1.1 の保護者プラン Price ID | ✓ |
 | `STRIPE_PRICE_CORP` | 1.1 の法人 Pro Price ID | ✓ |
+| `STRIPE_COUPON_MONITOR_FIRST1980` | モニター完走者の初月 1,980 円割引 coupon ID (1.1 + §4.0) | ✓ |
 | `ANTHROPIC_API_KEY` | 1.2 の `sk-ant-api03-...` | ✓ |
 | `ADMIN_TOKEN` | 自分しか知らない 32 字以上のランダム文字列 | ✓ |
 | `SLACK_WEBHOOK_URL` | 1.3 の URL | 推奨 |
@@ -117,6 +118,25 @@ clasp deploy 後、Apps Script コンソール → **プロジェクトの設定
 
 ---
 
+## 4.-1 cron 並走スケジュール (干渉ゼロを担保)
+
+| 時刻 (JST) | cron | 対象ユーザー | 干渉防止条件 |
+|---|---|---|---|
+| 毎時 :00 | `checkAndSendScheduled` | 全シナリオ進行中ユーザー | step / sentAt で重複防止 (既存) |
+| 09:00 日曜 | `weeklyParentReport` | `purchased_plan_family` 限定 | 他 cron と対象ユーザー被らず |
+| 09:00 月初 | `monthlyParentAlbum` | `purchased_plan_family` 限定 | weekly と被るが内容別、両方届いて OK |
+| 10:00 月曜 | `sns_proposal` (GitHub Actions) | LINE Push なし (運営者 LINE 通知 1 件のみ) | ユーザー宛配信なし |
+| 10:00 金曜 | `seo_article` (GitHub Actions) | Push なし (git commit のみ) | ユーザー宛配信なし |
+| 12:00 毎日 | `shareTextForDay2Completers` | SC-MAIN read_s1 直後 24h 以内 / 未購入 / 非モニター | `mon_active` / `mon_parent_active` 除外を実装済 |
+| 21:00 毎日 | `nudgeTrialDropouts` | SC-MAIN step 1 配信後 24-48h / read_s1 なし / 非購入 / 非モニター | `mon_active` / `mon_parent_active` 除外を実装済 |
+| 23:55 毎日 | `snapshotDailyMetrics` | Push なし (シート書き込みのみ) | ユーザー宛配信なし |
+
+**最速・最短の並走戦略:** すべての cron は対象セットが互いに排他 (購入者 / モニター参加者 / SC-MAIN 在籍者 / 保護者プラン契約者) になるよう、タグでガードしています。1 ユーザーが同じ時間帯に複数 cron 経由で push を受けることはありません。
+
+**唯一の重複ケース:** 月初日曜 09:00 は `weeklyParentReport` (週次) と `monthlyParentAlbum` (月次) が同時刻に走り、保護者プラン契約者 1 名に最大 2 通届く。意図的 (週次サマリと月次アルバムは別物) なので干渉ではない。
+
+---
+
 ## 4.0 親子モニター (5 名限定 / 14 日 / 思い出プラン記録の体験)
 
 - 募集ページ: `https://sho-blog.com/monitor/parent/`
@@ -127,6 +147,31 @@ clasp deploy 後、Apps Script コンソール → **プロジェクトの設定
 - 完了後特典: 1 講座無料 + 保護者プラン半額 (3 ヶ月)
 - LINE Bot 側関数: `handleParentMonitorInquiry`, `joinParentMonitor`, `getActiveParentMonitorCount`, `isParentMonitorRecruitmentOpen`
 - `completeMonitor` は `mon_parent_active` も同時に剥がして `mon_parent_completed` を付与
+
+### モニター完走 → 初月 1,980 円コンバート flow (新)
+
+```
+Day 14 (step 4)  口コミ依頼 / final survey
+Day 15 (step 5)  ✅ Amazon ギフト 2,000 円送付の告知
+                 ✅ 「初月 1,980 円で保護者プラン応援してくれたら嬉しい」
+                 ✅ ボタン: [初月 1,980 円で進む] [いまは見送る]
+Day 18 (step 6)  リマインド (1980 円のご案内)
+Day 22 (step 7)  最終ご案内 (本日締切)
+```
+
+すべての step に `skipIfTag: 'purchased'` を入れているので、step 5 で購入した人は step 6/7 を受け取らない。`monitor_convert_yes` postback で `createMonitorConvertCheckoutSession` を発行し、Stripe Coupon `STRIPE_COUPON_MONITOR_FIRST1980` (5,000 円引き / once / JPY) を当てて 1,980 円の Checkout に飛ばす。`monitor_convert_no` で `monitor_convert_declined` タグだけ残し、フォロー停止。
+
+**Stripe coupon 設定 (Stripe Dashboard 必須):**
+1. Stripe Dashboard → Products → Coupons → New
+2. ID: `monitor_first_1980` (または任意、Script Property `STRIPE_COUPON_MONITOR_FIRST1980` に設定する値と合わせる)
+3. Type: `Amount off`、5,000 円 (= 6,980 - 1,980)
+4. Currency: JPY
+5. Duration: `Once` (初月のみ適用)
+6. Restrictions: `STRIPE_PRICE_FAMILY` (保護者プラン) に紐付け
+
+**Amazon ギフト送付の運営オペ:** モニター step 5 配信時に運営者 LINE / Slack に通知が飛ぶ仕組みは現状なし (オプション)。週次で `MONITORS` シートで `status='completed'` 行に対して手動でアマギフ URL をメール送付するのが MVP。
+
+新規 Script Property: `STRIPE_COUPON_MONITOR_FIRST1980` (Stripe Dashboard で発行した coupon ID を貼り付け)
 
 ## 4.1 Customer Portal & 解約フロー
 

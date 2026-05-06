@@ -374,6 +374,24 @@ function handlePostback(event) {
     handlePlanSelected(event, plan);
     return;
   }
+
+  // モニター完走 → 初月 1,980 円コンバート
+  if (data === 'monitor_convert_yes') {
+    var convertResult = createMonitorConvertCheckoutSession(userId);
+    if (convertResult && convertResult.url) {
+      replyMessage(event.replyToken,
+        'ありがとうございます！\n下記から初月 1,980 円で進めます。\n（2 ヶ月目以降は通常価格 6,980 円。いつでも 1 クリック解約可能）\n\n' + convertResult.url);
+    } else {
+      replyMessage(event.replyToken, '専用 URL の準備中にエラーが発生しました。\nお手数ですが少し時間を置いて、もう一度ボタンをタップしてください。');
+      Logger.log('monitor_convert_yes error: ' + JSON.stringify(convertResult));
+    }
+    return;
+  }
+  if (data === 'monitor_convert_no') {
+    addTag(userId, 'monitor_convert_declined');
+    replyMessage(event.replyToken, '了解しました。お疲れさまでした。\n気が向いたタイミングで、また体験に戻ってきてください。');
+    return;
+  }
 }
 
 function checkAndSendScheduled() {
@@ -413,6 +431,7 @@ function checkAndSendScheduled() {
     if (step.sendMonitorFinalSurvey){ Utilities.sleep(500); sendMonitorFinalSurvey(userId); }
     if (step.markAiWritingPending)  { addTag(userId, 'ai_writing_pending'); }
     if (step.sendPlanSelect)        { Utilities.sleep(500); sendPlanSelectButtons(userId); }
+    if (step.sendMonitorConvert)    { Utilities.sleep(500); sendMonitorConvertButton(userId); }
     Utilities.sleep(200);
   }
   checkEngagement();
@@ -549,6 +568,12 @@ const SCENARIOS_DATA = {
       message: 'モニター10日目です。\n\nここまでで気づいたこと、\n変化したこと、\n逆に分かりにくかったことなど\n何でも教えてください。\n\n「フィードバック」と送っていただくと\n次のメッセージを記録に残します。\n\n残り4日、引き続きよろしくお願いします。' },
     { stepNum: 4, delayDays: 4, sendHour: 8, trackingTag: 'read_m4', sendMonitorFinalSurvey: true,
       message: 'モニター期間最終日です。\n14日間、本当にありがとうございました。\n\nこの体験の感想を\n短くで構いませんので\n口コミとしていただけませんか。\n\nいただいた方には\n次回サブスクを 半額（3ヶ月）で\nご利用いただけます。\n\n下のボタンからお答えください。' },
+    { stepNum: 5, delayDays: 1, sendHour: 9, trackingTag: 'read_m5', skipIfTag: 'purchased', sendMonitorConvert: true,
+      message: '14 日間、本当にお疲れさまでした。\n\nまずはお礼として、Amazon ギフト 2,000 円分を別便でお送りします (口コミをくださった方は今夜以降、未提出の方は近日中に)。\n\n少しちゃっかりしてしまうのですが、もしこの 14 日が「続けたい」と思える時間だったら、保護者プランを **初月 1,980 円** で応援していただけたら嬉しいです。\n（通常 6,980 円のところ。2 ヶ月目以降は通常価格、いつでも 1 クリック解約可。）\n\n下のボタンから初月 1,980 円の専用ページに進めます。' },
+    { stepNum: 6, delayDays: 3, sendHour: 19, trackingTag: 'read_m6', skipIfTag: 'purchased',
+      message: 'モニター完走から 4 日目です。\n\n初月 1,980 円のご案内、もし忘れてしまっていたら…と思いお声がけしました。\n（通常 6,980 円 → 初月のみ 1,980 円。2 ヶ月目以降は通常価格、いつでも解約可）\n\n▼ こちらから進めます\nhttps://sho-blog.com/payment/?plan=family' },
+    { stepNum: 7, delayDays: 4, sendHour: 9, trackingTag: 'read_m7', skipIfTag: 'purchased',
+      message: '初月 1,980 円のご案内は、本日まででいったん締めさせてください。\n\n来週からは通常価格 (6,980 円/月) でのご案内に戻ります。\n\nもし「続けてみたい」と思っていただけたら、下のボタンから今日中にお進みいただけると嬉しいです。\n\n▼ 最終ご案内 (本日締切)\nhttps://sho-blog.com/payment/?plan=family' },
   ],
   'SC-DELETE-NOTICE': [
     { stepNum: 0, delayDays: 0, sendHour: 9, trackingTag: 'read_del1', skipIfTag: 'reactivated',
@@ -742,6 +767,7 @@ function sendStepNow(userId, scenarioId, stepNum) {
   if (step && step.sendMonitorFinalSurvey) { Utilities.sleep(500); sendMonitorFinalSurvey(userId); }
   if (step && step.markAiWritingPending)   { addTag(userId, 'ai_writing_pending'); }
   if (step && step.sendPlanSelect)         { Utilities.sleep(500); sendPlanSelectButtons(userId); }
+  if (step && step.sendMonitorConvert)     { Utilities.sleep(500); sendMonitorConvertButton(userId); }
   Logger.log('送信完了: ' + scenarioId + ' step ' + stepNum + ' → ' + userId);
 }
 
@@ -1272,6 +1298,71 @@ function logCheckoutSuccess(session) {
   ]);
 }
 
+// モニター完走者向け: 初月 1,980 円の保護者プラン専用 Checkout への誘導ボタン
+function sendMonitorConvertButton(userId) {
+  if (hasTag(userId, 'purchased')) return;
+  UrlFetchApp.fetch(LINE_API + '/push', {
+    method: 'post',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+    payload: JSON.stringify({
+      to: userId,
+      messages: [{ type: 'template', altText: 'モニター完走特典: 初月 1,980 円', template: {
+        type: 'buttons',
+        title: '保護者プラン 初月 1,980 円',
+        text: 'モニター完走特典として\n初月のみ 1,980 円 (通常 6,980 円)',
+        actions: [
+          { type: 'postback', label: '初月 1,980 円で進む',  data: 'monitor_convert_yes' },
+          { type: 'postback', label: 'いまは見送る',           data: 'monitor_convert_no' }
+        ]
+      }}]
+    }),
+    muteHttpExceptions: true
+  });
+}
+
+// モニター完走者専用: 初月 1,980 円 Stripe Checkout を発行
+function createMonitorConvertCheckoutSession(userId) {
+  if (!userId) return { error: 'missing_uid' };
+  var stripeKey = getProp('STRIPE_SECRET_KEY');
+  if (!stripeKey) return { error: 'stripe_not_configured' };
+  var priceId = getProp('STRIPE_PRICE_FAMILY');
+  var couponId = getProp('STRIPE_COUPON_MONITOR_FIRST1980');
+  if (!priceId || !couponId) return { error: 'price_or_coupon_missing' };
+
+  var payload = {
+    'mode': 'subscription',
+    'success_url': 'https://sho-blog.com/payment/success.html?session_id={CHECKOUT_SESSION_ID}',
+    'cancel_url':  'https://sho-blog.com/payment/cancel.html',
+    'client_reference_id': userId,
+    'line_items[0][price]': priceId,
+    'line_items[0][quantity]': 1,
+    'discounts[0][coupon]': couponId,
+    'metadata[lineUserId]': userId,
+    'metadata[plan]': 'family',
+    'metadata[source]': 'monitor_convert',
+    'subscription_data[metadata][lineUserId]': userId,
+    'subscription_data[metadata][plan]': 'family',
+    'subscription_data[metadata][source]': 'monitor_convert'
+  };
+  var formData = Object.keys(payload).map(function(k){
+    return encodeURIComponent(k) + '=' + encodeURIComponent(payload[k]);
+  }).join('&');
+
+  var resp = UrlFetchApp.fetch('https://api.stripe.com/v1/checkout/sessions', {
+    method: 'post',
+    headers: { 'Authorization': 'Bearer ' + stripeKey, 'Content-Type': 'application/x-www-form-urlencoded' },
+    payload: formData,
+    muteHttpExceptions: true
+  });
+  if (resp.getResponseCode() !== 200) {
+    Logger.log('Stripe monitor convert checkout failed: ' + resp.getResponseCode() + ' ' + resp.getContentText().substr(0, 300));
+    notifyAlert('[Stripe] monitor_convert checkout 作成失敗', 'all');
+    return { error: 'stripe_api_error', status: resp.getResponseCode() };
+  }
+  try { var data = JSON.parse(resp.getContentText()); return { url: data.url, id: data.id }; }
+  catch(e) { return { error: 'stripe_parse_error' }; }
+}
+
 function sendPlanSelectButtons(userId) {
   UrlFetchApp.fetch(LINE_API + '/push', {
     method: 'post',
@@ -1635,6 +1726,8 @@ function nudgeTrialDropouts() {
     if (hasTag(userId, 'read_s1'))      continue;
     if (hasTag(userId, 'nudge_sent_d1')) continue;
     if (hasTag(userId, 'purchased') || hasTag(userId, 'deleted') || hasTag(userId, 'dormant')) continue;
+    // モニター参加者には別シナリオの配信が走るので除外 (干渉防止)
+    if (hasTag(userId, 'mon_active') || hasTag(userId, 'mon_parent_active')) continue;
 
     var displayName = users[i][1] || '';
     var prompt =
@@ -1897,6 +1990,8 @@ function shareTextForDay2Completers() {
     if (hasTag(userId, 'share_text_sent')) continue;
     if (hasTag(userId, 'deleted')) continue;
     if (hasTag(userId, 'purchased')) continue;  // Pro ユーザーには別フロー
+    // モニター参加者にはモニター完走 → コンバート flow がある (干渉防止)
+    if (hasTag(userId, 'mon_active') || hasTag(userId, 'mon_parent_active')) continue;
 
     // Claude で「コピペ歓迎」のシェア文 1 つを生成
     var prompt =
