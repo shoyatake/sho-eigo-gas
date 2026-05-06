@@ -1,0 +1,105 @@
+/**
+ * Code.gs — エントリポイント (doGet / doPost)
+ *
+ * doPost: JSON API
+ *   Content-Type: application/json
+ *   body: { action: '...', ... }
+ *     signup        { email, password, role, lineDisplayName? }
+ *     login         { email, password }
+ *     logout        { token }
+ *     verify        { token }
+ *     line_auth_url { state }
+ *   返り値: { ok: true, action, data } / { ok: false, action, error }
+ *
+ * doGet:
+ *   ?action=line_callback&code=&state=
+ *     LINE 認可コールバック → JWT 発行 → フロントへリダイレクト
+ *     （ScriptProperties.FRONTEND_REDIRECT_URI のフラグメントに token を付与）
+ *
+ *   それ以外: サービス情報の JSON
+ *
+ * ※ 例外は HTTP 境界で JSON 化する（内部モジュールでは throw のまま）。
+ */
+
+function doPost(e) {
+  var action = '(parse-error)';
+  try {
+    if (!e || !e.postData || !e.postData.contents) throw new Error('POST body が空です');
+    var body = JSON.parse(e.postData.contents);
+    action = body.action;
+    var data;
+    switch (action) {
+      case 'signup':
+        data = signup(body.email, body.password, body.role, body.lineDisplayName);
+        break;
+      case 'login':
+        data = login(body.email, body.password);
+        break;
+      case 'logout':
+        data = logout(body.token);
+        break;
+      case 'verify':
+        data = verifyJwt(body.token);
+        break;
+      case 'line_auth_url':
+        data = { url: lineGetAuthUrl(body.state) };
+        break;
+      default:
+        throw new Error('unknown action: ' + action);
+    }
+    return _json({ ok: true, action: action, data: data });
+  } catch (err) {
+    Logger.log('doPost error (' + action + '): ' + err.message);
+    return _json({ ok: false, action: action, error: err.message });
+  }
+}
+
+function doGet(e) {
+  var p = (e && e.parameter) || {};
+  if (p.action === 'line_callback') {
+    return _handleLineCallback(p.code, p.state);
+  }
+  return _json({
+    ok: true,
+    service: 'sho-eigo-gas',
+    endpoints: ['POST /', 'GET /?action=line_callback']
+  });
+}
+
+// ---------- 内部 ----------
+
+function _handleLineCallback(code, state) {
+  var redirectBase = PropertiesService.getScriptProperties().getProperty('FRONTEND_REDIRECT_URI') || '';
+  try {
+    if (!redirectBase) throw new Error('ScriptProperties に FRONTEND_REDIRECT_URI がありません');
+    var result = lineHandleCallback(code);
+    var sep = redirectBase.indexOf('#') >= 0 ? '&' : '#';
+    var url = redirectBase + sep
+      + 'token=' + encodeURIComponent(result.token)
+      + '&userId=' + encodeURIComponent(result.userId)
+      + '&role=' + encodeURIComponent(result.role)
+      + (state ? '&state=' + encodeURIComponent(state) : '');
+    return HtmlService.createHtmlOutput(
+      '<!doctype html><html><body>'
+      + '<script>location.replace(' + JSON.stringify(url) + ');</script>'
+      + '<p>Redirecting…</p></body></html>'
+    );
+  } catch (err) {
+    Logger.log('line_callback error: ' + err.message);
+    return HtmlService.createHtmlOutput(
+      '<!doctype html><html><body><h1>LINE ログイン失敗</h1><pre>'
+      + _esc(err.message) + '</pre></body></html>'
+    );
+  }
+}
+
+function _json(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function _esc(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+  });
+}
