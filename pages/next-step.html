@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>プランを選ぶ | sho eigo</title>
+<meta name="description" content="sho eigo のプラン選択。L1 / L2 / L3 / 保護者プランから。月額制・いつでも解約・14 日間全額返金保証。">
+<link rel="stylesheet" href="/assets/style.css">
+<style>
+  .plan-card { background:#fff; border-radius:14px; padding:20px; margin-bottom:14px; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
+  .plan-card.featured { border:3px solid #1a2d45; box-shadow:0 4px 16px rgba(26,45,69,0.18); }
+  .plan-card h3 { margin:0 0 6px; color:#1a2d45; }
+  .plan-card .price { font-size:24px; font-weight:bold; color:#1a2d45; margin:8px 0; }
+  .plan-card .features { margin:8px 0; padding-left:18px; }
+  .plan-card .features li { font-size:13px; line-height:1.7; }
+  .plan-card .badge { display:inline-block; background:#d2a14d; color:#fff; padding:2px 10px; border-radius:999px; font-size:11px; margin-left:6px; }
+  .plan-card .btn { margin-top:8px; }
+  .secondary-plans { margin-top:24px; }
+  .secondary-plans summary { cursor:pointer; padding:8px 0; color:#1a2d45; font-weight:600; }
+  .guarantee { background:#fff5e6; border-left:4px solid #d2a14d; padding:12px 16px; border-radius:6px; margin-top:24px; font-size:14px; }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <a href="/" class="brand">sho eigo</a>
+  <nav>
+    <a href="/">ホーム</a>
+    <a href="/lp/">体験</a>
+    <a href="/products/">プラン</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <h1>プランを選ぶ</h1>
+  <p id="hero-sub">レベルに合わせて選んでください。月額制・いつでも解約・14 日間全額返金保証。</p>
+</section>
+
+<main class="container">
+
+  <div id="plans-default">
+    <h2>レベル別プラン</h2>
+
+    <div class="plan-card">
+      <h3>L1 Foundation</h3>
+      <div class="price">¥2,980 / 月</div>
+      <p class="muted small">英語の音をゼロから整える 27 コース・540 レッスン</p>
+      <ul class="features">
+        <li>カタカナ英語 RESET (3 コース)</li>
+        <li>シャドーイング習慣化 (3 コース)</li>
+        <li>中学英語 中1〜中3 (9 コース)</li>
+        <li>英検 4 級 / 3 級 (12 コース)</li>
+      </ul>
+      <a id="cta-l1" href="#" class="btn block">L1 で始める</a>
+    </div>
+
+    <div class="plan-card">
+      <h3>L2 Intermediate <span class="badge">人気</span></h3>
+      <div class="price">¥3,480 / 月</div>
+      <p class="muted small">L1 + 英検準 2 級 / 2 級 (39 コース・720 レッスン)</p>
+      <ul class="features">
+        <li>L1 の全コース</li>
+        <li>英検準 2 級 (6 コース)</li>
+        <li>英検 2 級 (6 コース)</li>
+      </ul>
+      <a id="cta-l2" href="#" class="btn block">L2 で始める</a>
+    </div>
+
+    <div class="plan-card">
+      <h3>L3 Advanced</h3>
+      <div class="price">¥3,980 / 月</div>
+      <p class="muted small">全コースアクセス (51 コース・900 レッスン)</p>
+      <ul class="features">
+        <li>L2 の全コース</li>
+        <li>英検準 1 級 (6 コース)</li>
+        <li>英検 1 級 (6 コース)</li>
+      </ul>
+      <a id="cta-l3" href="#" class="btn block">L3 で始める</a>
+    </div>
+
+    <h2 style="margin-top:32px;">保護者向け</h2>
+
+    <div class="plan-card" data-plan="parent">
+      <h3>保護者プラン</h3>
+      <div class="price">¥4,980 / 月</div>
+      <p style="font-weight:600;">音声学習は、思い出になる。</p>
+      <ul class="features">
+        <li>L3 の全コース (51 コース・900 レッスン)</li>
+        <li>毎週日曜の保護者レポート</li>
+        <li>月初の思い出アルバム</li>
+        <li>対象: 小1〜高3</li>
+      </ul>
+      <a id="cta-parent" href="#" class="btn block">保護者プランで始める</a>
+    </div>
+  </div>
+
+  <div class="guarantee">
+    💯 <strong>14 日間全額返金保証</strong>: 試してみて合わなかったら、購入後 14 日以内であれば全額返金します。
+  </div>
+
+  <p class="muted small" style="margin-top:24px;">
+    クレジットカード決済は Stripe を利用します。<br>
+    解約はいつでもお客様ポータルから 1 クリックで可能です。
+  </p>
+
+</main>
+
+<footer class="site">
+  © sho eigo
+  <div style="margin-top:6px;">
+    <a href="/">ホーム</a>
+    <a href="/products/">プラン</a>
+    <a href="/lp/">体験</a>
+  </div>
+</footer>
+
+<script>
+(function() {
+  var GAS_DEPLOY_ID = 'YOUR_GAS_DEPLOYMENT_ID';
+  var GAS_BASE = 'https://script.google.com/macros/s/' + GAS_DEPLOY_ID + '/exec';
+  var params = new URLSearchParams(location.search);
+  var planParam = params.get('plan') || '';
+  var fromParam = params.get('from') || '';
+  var uid = params.get('uid') || '';
+
+  function buildCheckoutUrl(plan) {
+    return GAS_BASE + '?action=checkout&plan=' + encodeURIComponent(plan)
+      + (uid ? '&uid=' + encodeURIComponent(uid) : '');
+  }
+
+  function buildLineDeepLink(plan) {
+    var label = ({l1:'L1', l2:'L2', l3:'L3', parent:'保護者プラン'})[plan] || 'プラン';
+    return 'https://line.me/R/oaMessage/@YOUR_LINE_ID/?' + encodeURIComponent(label);
+  }
+
+  ['l1','l2','l3','parent'].forEach(function(p) {
+    var el = document.getElementById('cta-' + p);
+    if (!el) return;
+    if (uid) {
+      el.href = buildCheckoutUrl(p);
+    } else {
+      el.href = buildLineDeepLink(p);
+      el.textContent = 'LINE で続ける';
+    }
+  });
+
+  // ?from=parent の場合: 保護者プランを最上部に強調
+  if (fromParam === 'parent') {
+    var sub = document.getElementById('hero-sub');
+    if (sub) sub.innerHTML = '親子体験で見ていただいた「成長アルバム」を続けるなら <strong>保護者プラン</strong> です。';
+    var defaultBox = document.getElementById('plans-default');
+    var parentCard = document.querySelector('[data-plan="parent"]');
+    if (parentCard && defaultBox) {
+      parentCard.classList.add('featured');
+      defaultBox.insertBefore(parentCard, defaultBox.firstChild);
+      // L1/L2/L3 を折りたたみ
+      var others = document.createElement('details');
+      others.className = 'secondary-plans';
+      others.innerHTML = '<summary>レポート・アルバムなしの基本プラン (L1/L2/L3) も見る</summary>';
+      var levelHeading = defaultBox.querySelector('h2');
+      if (levelHeading) levelHeading.style.display = 'none';
+      var parentHeading = defaultBox.querySelectorAll('h2')[1];
+      if (parentHeading) parentHeading.style.display = 'none';
+      ['cta-l1','cta-l2','cta-l3'].forEach(function(id) {
+        var card = document.getElementById(id) && document.getElementById(id).closest('.plan-card');
+        if (card) others.appendChild(card);
+      });
+      defaultBox.appendChild(others);
+    }
+  }
+
+  // ?plan=xxx を URL で受けたらカードをハイライトしてスクロール
+  if (planParam && document.getElementById('cta-' + planParam)) {
+    var card = document.getElementById('cta-' + planParam).closest('.plan-card');
+    if (card) {
+      card.classList.add('featured');
+      card.scrollIntoView({behavior: 'smooth', block: 'center'});
+    }
+  }
+})();
+</script>
+
+</body>
+</html>

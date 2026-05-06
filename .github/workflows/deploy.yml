@@ -83,6 +83,10 @@ jobs:
           for u in https://sho-blog.com/ \
                    https://sho-blog.com/products/ \
                    https://sho-blog.com/lp/ \
+                   https://sho-blog.com/next-step.html \
+                   https://sho-blog.com/payment/success.html \
+                   https://sho-blog.com/payment/cancel.html \
+                   https://sho-blog.com/trial/parent_lp.html \
                    https://sho-blog.com/monitor/ \
                    https://sho-blog.com/monitor/dashboard.html \
                    https://sho-blog.com/monitor/parent/dashboard.html \
