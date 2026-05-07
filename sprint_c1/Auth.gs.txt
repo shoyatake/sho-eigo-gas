@@ -100,9 +100,13 @@ function _findRowByEmail(ctx, email) {
 }
 
 function _hash(password, saltHex, iterations) {
-  var bytes = Utilities.computeHmacSha256Signature(password + saltHex, saltHex);
+  var saltBytes = Utilities.newBlob(saltHex).getBytes();
+  var bytes = Utilities.computeHmacSha256Signature(
+    Utilities.newBlob(password + saltHex).getBytes(),
+    saltBytes
+  );
   for (var i = 1; i < iterations; i++) {
-    bytes = Utilities.computeHmacSha256Signature(bytes, saltHex);
+    bytes = Utilities.computeHmacSha256Signature(bytes, saltBytes);
   }
   return Utilities.base64Encode(bytes);
 }
