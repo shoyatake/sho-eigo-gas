@@ -7,12 +7,16 @@
 <title>ダッシュボード | sho eigo</title>
 <link rel="stylesheet" href="/assets/style.css">
 <style>
-  .dash-box { max-width: 520px; margin: 32px auto; padding: 24px; background: #fff; border: 1px solid var(--border); border-radius: 8px; }
-  .kv-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dotted var(--border); }
-  .kv-row .k { color: var(--muted); font-size: 14px; }
-  .kv-row .v { font-weight: bold; }
-  .btn-secondary { padding: 10px 16px; background: #fff; color: var(--navy); border: 1px solid var(--navy); border-radius: 4px; cursor: pointer; font-size: 14px; }
-  .btn-secondary:hover { background: var(--navy); color: #fff; }
+  body { font-family: 'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic', sans-serif; background: #fafaf7; color: #2a2a2a; margin: 0; }
+  .dash-box { max-width: 520px; margin: 32px auto; padding: 24px; background: #fff; border: 1px solid #e3e1da; border-radius: 8px; }
+  .dash-box h1 { color: #1a2d45; margin-top: 0; }
+  .kv-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dotted #e3e1da; }
+  .kv-row .k { color: #6a6a6a; font-size: 14px; }
+  .kv-row .v { font-weight: bold; word-break: break-all; max-width: 60%; text-align: right; }
+  .btn-secondary { padding: 10px 16px; background: #fff; color: #1a2d45; border: 1px solid #1a2d45; border-radius: 4px; cursor: pointer; font-size: 14px; }
+  .btn-secondary:hover { background: #1a2d45; color: #fff; }
+  header.site { padding: 12px 16px; }
+  header.site .brand { color: #1a2d45; text-decoration: none; font-weight: bold; }
 </style>
 </head>
 <body>
