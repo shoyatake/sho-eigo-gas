@@ -22,6 +22,7 @@
  */
 
 function doPost(e) {
+  _autoInitIfNeeded();
   var action = '(parse-error)';
   try {
     if (!e || !e.postData || !e.postData.contents) throw new Error('POST body が空です');
@@ -55,14 +56,19 @@ function doPost(e) {
 }
 
 function doGet(e) {
+  _autoInitIfNeeded();
   var p = (e && e.parameter) || {};
   if (p.action === 'line_callback') {
     return _handleLineCallback(p.code, p.state);
   }
+  if (p.action === 'selftest') {
+    return _runSelfTest();
+  }
   return _json({
     ok: true,
     service: 'sho-eigo-gas',
-    endpoints: ['POST /', 'GET /?action=line_callback']
+    endpoints: ['POST /', 'GET /?action=line_callback', 'GET /?action=selftest'],
+    inited: PropertiesService.getScriptProperties().getProperty('_inited') === 'true'
   });
 }
 
