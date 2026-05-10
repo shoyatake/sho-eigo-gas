@@ -4,10 +4,40 @@
 // ============================================================
 
 const CONFIG = {
-  LINE_TOKEN: 'YOUR_LINE_CHANNEL_ACCESS_TOKEN',
+  // LINE_TOKEN は ScriptProperties から取得する（直書き禁止）
+  // 設定方法: GAS エディタで関数 setupToken を実行 → プロンプトで貼り付け
+  // または ⚙ プロジェクトの設定 → スクリプトプロパティ で LINE_TOKEN を直接登録
+  LINE_TOKEN: PropertiesService.getScriptProperties().getProperty('LINE_TOKEN') || '',
   SS_ID: 'YOUR_SPREADSHEET_ID',
   GAS_URL: 'YOUR_GAS_DEPLOY_URL',
 };
+
+/**
+ * LINE_TOKEN を ScriptProperties に保存する。
+ * 旧トークンが漏洩・失効した時はこの関数を再実行するだけで差し替え完了。
+ * 使い方: GAS エディタの関数選択ドロップダウンから setupToken を選び「実行」。
+ */
+function setupToken() {
+  var ui = SpreadsheetApp.getUi();
+  var current = PropertiesService.getScriptProperties().getProperty('LINE_TOKEN') || '';
+  var hint = current ? '（現在の先頭8文字: ' + current.slice(0, 8) + '...）' : '（未設定）';
+  var resp = ui.prompt(
+    'LINE_TOKEN を更新',
+    '新しいチャネル アクセス トークンを貼り付け\n' + hint,
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (resp.getSelectedButton() !== ui.Button.OK) {
+    ui.alert('キャンセルしました');
+    return;
+  }
+  var v = resp.getResponseText().trim();
+  if (!v) {
+    ui.alert('入力が空のため保存しませんでした');
+    return;
+  }
+  PropertiesService.getScriptProperties().setProperty('LINE_TOKEN', v);
+  ui.alert('保存しました', 'LINE_TOKEN: ' + v.slice(0, 8) + '...（' + v.length + ' 文字）', ui.ButtonSet.OK);
+}
 
 const MONITOR_CONFIG = {
   CAPACITY: 10,
