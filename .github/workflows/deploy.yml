@@ -67,7 +67,7 @@ jobs:
       - name: Install lftp
         run: sudo apt-get update && sudo apt-get install -y lftp
 
-      - name: Upload via FTP (no-delete: 既存ファイルは保持)
+      - name: "Upload via FTP (no-delete: 既存ファイルは保持)"
         env:
           FTP_PASS: ${{ secrets.FTP_PASS }}
         run: |
