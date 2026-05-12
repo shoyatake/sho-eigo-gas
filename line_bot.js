@@ -403,6 +403,34 @@ function hasAnyReadTag(userId) {
   return false;
 }
 
+// ------------------------------------------------------------
+// Deletion-flow consolidation (2026-05-02)
+//
+// Two competing designs existed:
+//   - SC-DELETE-NOTICE  : merged in PR #2 (already in production).
+//                         4 steps over ~7 days (Day 0/3/6/7),
+//                         logical deletion via the 'deleted' tag,
+//                         DELETION_LOG schema = [userId, deletedAt, reason],
+//                         reactivation via the existing quiz_* postback
+//                         (sets the 'reactivated' tag, skipIfTag honors it).
+//   - SC-DELETION       : proposed in PR #1 (open, NOT merged).
+//                         4 steps over 30 days (T-30/7/3/0),
+//                         physical row deletion of USERS + TAGS,
+//                         DELETION_LOG schema = [userId, deletedAt],
+//                         reactivation via a dedicated 'keep_account'
+//                         postback button on every step.
+//
+// Decision: keep SC-DELETE-NOTICE as-is. It is already shipped, it is
+// non-destructive (logical deletion preserves audit history and is
+// reversible), and reactivation is wired to the existing quiz path so
+// no new postback handler is required. PR #1 is superseded by this
+// consolidation; closure recommended pending owner approval.
+//
+// If a longer 30-day cooldown is later desired, prefer extending
+// SC-DELETE-NOTICE delays here rather than swapping in physical
+// deletion — keep DELETION_LOG's [userId, deletedAt, reason] schema
+// stable so existing rows remain valid.
+// ------------------------------------------------------------
 const SCENARIOS_DATA = {
   'SC-MAIN': [
     { stepNum: 0, delayDays: 0, sendHour: 0, trackingTag: 'read_s0',
