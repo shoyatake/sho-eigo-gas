@@ -1,13 +1,31 @@
 import fs from "node:fs/promises";
 import { callOpenAI, createIssue, jstDate } from "./common.mjs";
 
-const dryRun = String(process.env.DRY_RUN || "false").toLowerCase() === "true";
-const createTaskIssues = String(process.env.CREATE_TASK_ISSUES || "true").toLowerCase() === "true";
-const taskLimit = Number(process.env.TASK_LIMIT || "20");
+function parseBool(name, defaultValue) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return defaultValue;
+  if (String(raw).toLowerCase() === "true") return true;
+  if (String(raw).toLowerCase() === "false") return false;
+  throw new Error(`${name} must be "true" or "false".`);
+}
+
+function parseTaskLimit(raw) {
+  const value = Number(raw || "5");
+  if (!Number.isInteger(value) || value < 1 || value > 20) {
+    throw new Error("TASK_LIMIT must be an integer between 1 and 20.");
+  }
+  return value;
+}
+
+const dryRun = parseBool("DRY_RUN", true);
+const createTaskIssues = parseBool("CREATE_TASK_ISSUES", false);
+const taskLimit = parseTaskLimit(process.env.TASK_LIMIT);
 
 async function githubRaw({ path, method = "GET", body }) {
   const token = process.env.GITHUB_TOKEN;
   const repo = process.env.GITHUB_REPOSITORY;
+  if (!token) throw new Error("GITHUB_TOKEN is required for GitHub writes.");
+  if (!repo) throw new Error("GITHUB_REPOSITORY is required for GitHub writes.");
   const res = await fetch(`https://api.github.com/repos/${repo}${path}`, {
     method,
     headers: {
@@ -43,6 +61,15 @@ async function upsertLabel(name, color, description) {
     }
     throw e;
   }
+}
+
+async function openIssueTitles() {
+  const issues = await githubRaw({ path: "/issues?state=open&per_page=100" });
+  return new Set(
+    issues
+      .filter(issue => !issue.pull_request)
+      .map(issue => issue.title)
+  );
 }
 
 const tasks = [
@@ -327,6 +354,7 @@ const labels = [
   ["trust", "BFD4F2", "信頼/お客様の声"],
 ];
 
+const selectedTasks = tasks.slice(0, taskLimit);
 const profile = await fs.readFile("growth/sho-eigo-profile.md", "utf8").catch(() => "");
 
 const prompt = `
@@ -335,8 +363,8 @@ sho eigoの声日記プレミアムを主力商品として、収益性と拡散
 # 前提
 ${profile}
 
-# 今回実行Issue化する上位20タスク
-${tasks.map((t, i) => `${i + 1}. ${t.title}`).join("\n")}
+# 今回確認する上位タスク
+${selectedTasks.map((t, i) => `${i + 1}. ${t.title}`).join("\n")}
 
 # 出力
 - 戦略サマリー
@@ -352,19 +380,16 @@ ${tasks.map((t, i) => `${i + 1}. ${t.title}`).join("\n")}
 `;
 
 let strategicBrief = "";
-try {
+if (dryRun) {
+  strategicBrief = `DRY_RUN=true のため、OpenAI API呼び出しとGitHub書き込みは行いません。
+
+この実行では、作成予定のタスクと設定値だけを確認します。`;
+} else {
   strategicBrief = await callOpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     model: process.env.OPENAI_MODEL || "gpt-5.4-mini",
     prompt,
   });
-} catch (error) {
-  strategicBrief = `OpenAI brief generation failed.
-
-Error:
-${error?.message || error}
-
-ただし、上位20タスクのIssue化は続行できます。`;
 }
 
 const summaryBody = `# Voice Diary Premium Sprint
@@ -380,9 +405,9 @@ ${strategicBrief}
 
 ---
 
-## 作成予定の上位20タスク
+## 確認対象の上位タスク
 
-${tasks.map((t, i) => `### ${i + 1}. ${t.title}
+${selectedTasks.map((t, i) => `### ${i + 1}. ${t.title}
 
 目的: ${t.objective}
 
@@ -399,19 +424,30 @@ for (const [name, color, description] of labels) {
   await upsertLabel(name, color, description);
 }
 
-const summaryIssue = await createIssue(`Voice Diary Premium Sprint: ${jstDate()}`, summaryBody, [
-  "revenue",
-  "voice-diary-premium",
-  "today",
-]);
-
-console.log(`Summary issue: ${summaryIssue.html_url}`);
+const existingTitles = await openIssueTitles();
+const summaryTitle = `Voice Diary Premium Sprint: ${jstDate()}`;
+if (existingTitles.has(summaryTitle)) {
+  console.log(`Skip existing summary issue: ${summaryTitle}`);
+} else {
+  const summaryIssue = await createIssue(summaryTitle, summaryBody, [
+    "revenue",
+    "voice-diary-premium",
+    "today",
+  ]);
+  existingTitles.add(summaryTitle);
+  console.log(`Summary issue: ${summaryIssue.html_url}`);
+}
 
 if (createTaskIssues) {
-  const selected = tasks.slice(0, Math.max(1, Math.min(taskLimit, tasks.length)));
-  for (let i = 0; i < selected.length; i++) {
-    const task = selected[i];
-    const issue = await createIssue(`[Voice Premium ${i + 1}] ${task.title}`, taskBody(task, i), task.labels);
+  for (let i = 0; i < selectedTasks.length; i++) {
+    const task = selectedTasks[i];
+    const title = `[Voice Premium ${i + 1}] ${task.title}`;
+    if (existingTitles.has(title)) {
+      console.log(`Skip existing task issue ${i + 1}: ${title}`);
+      continue;
+    }
+    const issue = await createIssue(title, taskBody(task, i), task.labels);
+    existingTitles.add(title);
     console.log(`Task issue ${i + 1}: ${issue.html_url}`);
   }
 }
