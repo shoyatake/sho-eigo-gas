@@ -1,0 +1,56 @@
+name: Sho Voice Diary Premium Sprint
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "true: 確認のみ / false: Issue作成"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      create_task_issues:
+        description: "上位タスクIssueを作成する"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      task_limit:
+        description: "作成する上位タスク数"
+        required: true
+        default: "20"
+
+  schedule:
+    # Monday 07:20 JST
+    - cron: "20 22 * * 0"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sprint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.4-mini' }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+      CREATE_TASK_ISSUES: ${{ github.event_name == 'workflow_dispatch' && inputs.create_task_issues || 'true' }}
+      TASK_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.task_limit || '20' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Create Voice Diary Premium sprint issues
+        run: node scripts/ops/sho-voice-diary-premium-sprint.mjs
