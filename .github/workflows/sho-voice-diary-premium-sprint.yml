@@ -6,7 +6,7 @@ on:
       dry_run:
         description: "true: 確認のみ / false: Issue作成"
         required: true
-        default: "false"
+        default: "true"
         type: choice
         options:
           - "true"
@@ -14,7 +14,7 @@ on:
       create_task_issues:
         description: "上位タスクIssueを作成する"
         required: true
-        default: "true"
+        default: "false"
         type: choice
         options:
           - "true"
@@ -22,10 +22,10 @@ on:
       task_limit:
         description: "作成する上位タスク数"
         required: true
-        default: "20"
+        default: "5"
 
   schedule:
-    # Monday 07:20 JST
+    # 07:20 JST Monday = 22:20 UTC Sunday
     - cron: "20 22 * * 0"
 
 permissions:
@@ -41,9 +41,9 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.4-mini' }}
-      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
-      CREATE_TASK_ISSUES: ${{ github.event_name == 'workflow_dispatch' && inputs.create_task_issues || 'true' }}
-      TASK_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.task_limit || '20' }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'true' }}
+      CREATE_TASK_ISSUES: ${{ github.event_name == 'workflow_dispatch' && inputs.create_task_issues || 'false' }}
+      TASK_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.task_limit || '5' }}
 
     steps:
       - uses: actions/checkout@v4
