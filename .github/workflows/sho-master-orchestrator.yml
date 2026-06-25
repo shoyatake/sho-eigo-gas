@@ -1,0 +1,99 @@
+name: Sho Master Orchestrator
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_level:
+        description: "daily / weekly / full"
+        required: true
+        default: "daily"
+        type: choice
+        options:
+          - daily
+          - weekly
+          - full
+      dry_run:
+        description: "Growth Engine dry_run"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+  schedule:
+    # 22:30 UTC = 07:30 JST
+    - cron: "30 22 * * *"
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  orchestrate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Dispatch CEO Agent
+        run: |
+          gh workflow run sho-ceo-agent.yml --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dispatch Growth Engine
+        run: |
+          gh workflow run sho-growth-engine.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            -f mode=daily \
+            -f dry_run="${{ inputs.dry_run || 'false' }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dispatch SNS Engine
+        run: |
+          gh workflow run sho-sns-engine.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            -f platform=all
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dispatch SEO Engine
+        if: ${{ inputs.run_level == 'weekly' || inputs.run_level == 'full' || github.event_name == 'schedule' }}
+        run: |
+          gh workflow run sho-seo-engine.yml --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dispatch Weekly Report
+        if: ${{ inputs.run_level == 'weekly' || inputs.run_level == 'full' }}
+        run: |
+          gh workflow run sho-weekly-report.yml --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dispatch Analytics Setup Advisor
+        if: ${{ inputs.run_level == 'full' }}
+        run: |
+          gh workflow run sho-analytics-setup.yml --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dispatch Projects Setup Advisor
+        if: ${{ inputs.run_level == 'full' }}
+        run: |
+          gh workflow run sho-projects-setup.yml --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "# Sho Master Orchestrator" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Dispatched workflows." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- CEO Agent" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Growth Engine" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SNS Engine" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SEO Engine if weekly/full/schedule" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Weekly Report if weekly/full" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Analytics/Projects if full" >> "$GITHUB_STEP_SUMMARY"
