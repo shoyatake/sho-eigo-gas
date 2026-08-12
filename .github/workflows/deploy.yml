@@ -1,0 +1,130 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'line_bot.js'
+      - 'appsscript.json'
+      - 'pages/**'
+      - '.claspignore'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-gas:
+    name: Deploy GAS (clasp push + redeploy Web App)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install clasp
+        run: npm install -g @google/clasp@2.4.2
+
+      - name: Validate GAS deploy secrets
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          CLASP_JSON: ${{ secrets.CLASP_JSON }}
+          GAS_DEPLOYMENT_ID: ${{ secrets.GAS_DEPLOYMENT_ID }}
+        run: |
+          test -n "$CLASPRC_JSON" || { echo "::error::CLASPRC_JSON secret is missing"; exit 1; }
+          test -n "$CLASP_JSON" || { echo "::error::CLASP_JSON secret is missing"; exit 1; }
+          test -n "$GAS_DEPLOYMENT_ID" || { echo "::error::GAS_DEPLOYMENT_ID secret is missing"; exit 1; }
+          printf '%s' "$CLASPRC_JSON" | jq empty
+          printf '%s' "$CLASP_JSON" | jq empty
+
+      - name: Restore clasp credentials
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          CLASP_JSON: ${{ secrets.CLASP_JSON }}
+        run: |
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          printf '%s' "$CLASP_JSON" > .clasp.json
+
+      - name: clasp push
+        run: clasp push -f
+
+      - name: clasp deploy (update Web App)
+        run: |
+          clasp deploy \
+            -i "${{ secrets.GAS_DEPLOYMENT_ID }}" \
+            -d "auto: ${{ github.sha }}"
+
+  deploy-pages:
+    name: Deploy static pages (FTP)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Substitute placeholders
+        env:
+          LINE_ID: ${{ secrets.LINE_ID }}
+          GAS_DEPLOYMENT_ID: ${{ secrets.GAS_DEPLOYMENT_ID }}
+          LIFF_ID: ${{ secrets.LIFF_ID }}
+        run: |
+          test -n "$LINE_ID" || { echo "::error::LINE_ID secret is missing"; exit 1; }
+          test -n "$GAS_DEPLOYMENT_ID" || { echo "::error::GAS_DEPLOYMENT_ID secret is missing"; exit 1; }
+          mkdir -p build
+          cp -r pages/. build/
+          find build -type f \( -name '*.html' -o -name '*.css' \) -print0 \
+            | xargs -0 sed -i \
+                -e "s|@YOUR_LINE_ID|${LINE_ID}|g" \
+                -e "s|YOUR_GAS_DEPLOYMENT_ID|${GAS_DEPLOYMENT_ID}|g" \
+                -e "s|YOUR_LIFF_ID|${LIFF_ID:-YOUR_LIFF_ID}|g"
+          for f in index.html products/index.html lp/index.html next-step.html \
+                   payment/success.html payment/cancel.html trial/parent_lp.html \
+                   monitor/index.html monitor/dashboard.html monitor/parent/dashboard.html \
+                   assets/style.css; do
+            test -f "build/$f" || { echo "::error::Missing build/$f"; exit 1; }
+          done
+          if grep -R -n -E '@YOUR_LINE_ID|YOUR_GAS_DEPLOYMENT_ID' build; then
+            echo "::error::Unsubstituted placeholder remains in build output"
+            exit 1
+          fi
+
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp
+
+      - name: "Upload via FTP (no-delete: 既存ファイルは保持)"
+        env:
+          FTP_PASS: ${{ secrets.FTP_PASS }}
+        run: |
+          test -n "$FTP_PASS" || { echo "::error::FTP_PASS secret is missing"; exit 1; }
+          lftp -u "xs672802,${FTP_PASS}" \
+            -e "set ftp:ssl-allow no; \
+                mirror --reverse --no-delete --only-newer --verbose=2 \
+                       build/ /sho-blog.com/public_html/; \
+                quit" \
+            sv16546.xserver.jp
+
+      - name: Verify endpoints
+        run: |
+          for u in https://sho-blog.com/ \
+                   https://sho-blog.com/products/ \
+                   https://sho-blog.com/lp/ \
+                   https://sho-blog.com/next-step.html \
+                   https://sho-blog.com/payment/success.html \
+                   https://sho-blog.com/payment/cancel.html \
+                   https://sho-blog.com/trial/parent_lp.html \
+                   https://sho-blog.com/monitor/ \
+                   https://sho-blog.com/monitor/parent/ \
+                   https://sho-blog.com/monitor/dashboard.html \
+                   https://sho-blog.com/monitor/parent/dashboard.html \
+                   https://sho-blog.com/payment/ \
+                   https://sho-blog.com/payment/success.html \
+                   https://sho-blog.com/payment/cancel.html \
+                   https://sho-blog.com/admin/ \
+                   https://sho-blog.com/child/dashboard.html \
+                   https://sho-blog.com/articles/ \
+                   https://sho-blog.com/assets/style.css ; do
+            printf "%s -> " "$u"
+            curl -fsSIL "$u" | head -1
+          done

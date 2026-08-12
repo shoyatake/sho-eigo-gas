@@ -1,0 +1,125 @@
+/**
+ * Init.gs — 一回きり自動セットアップ + selftest エンドポイント
+ *
+ * 仕組み:
+ *   - doGet/doPost の冒頭で _autoInitIfNeeded() が走り、未初期化なら一発で
+ *     ScriptProperties 設定 + setupSheets + 生徒マスター行追加 を実行する
+ *   - ?action=selftest でサーバ側に signup→login→verify→logout→verify(revoked)
+ *     を回させ、JSON で結果を返す
+ *
+ * INIT_VALUES と INIT_TEST_EMAIL は deploy.js が外部から書き換えてから push する。
+ * （リポジトリには placeholder のまま入る）
+ */
+
+var INIT_VALUES = {
+  SPREADSHEET_ID: '__SPREADSHEET_ID__',
+  JWT_SECRET: '__JWT_SECRET__',
+  JWT_TTL_DAYS: '30',
+  LINE_CHANNEL_ID: 'PENDING_LINE_LOGIN_CHANNEL',
+  LINE_CHANNEL_SECRET: '__LINE_CHANNEL_SECRET__',
+  FRONTEND_REDIRECT_URI: 'https://sho-blog.com/monitor/dashboard.html'
+};
+var INIT_TEST_EMAIL = '__TEST_EMAIL__';
+
+function _autoInitIfNeeded() {
+  var sp = PropertiesService.getScriptProperties();
+  if (sp.getProperty('_inited') === 'true') return;
+
+  var props = {};
+  for (var k in INIT_VALUES) props[k] = INIT_VALUES[k];
+  // LINE_REDIRECT_URI は web app URL から動的に組み立て
+  props.LINE_REDIRECT_URI = ScriptApp.getService().getUrl() + '?action=line_callback';
+  sp.setProperties(props);
+  Logger.log('AutoInit: ScriptProperties set');
+
+  setupSheets();
+
+  // 生徒マスターに test email 行を保証
+  var ss = SpreadsheetApp.openById(INIT_VALUES.SPREADSHEET_ID);
+  var master = ss.getSheetByName('生徒マスター');
+  var lastCol = master.getLastColumn();
+  var headers = master.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
+  var emailCol = headers.indexOf('email');
+  if (emailCol < 0) {
+    master.getRange(1, lastCol + 1).setValue('email');
+    headers.push('email');
+    emailCol = headers.length - 1;
+  }
+  var values = master.getDataRange().getValues();
+  var has = false;
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][emailCol]) === INIT_TEST_EMAIL) { has = true; break; }
+  }
+  if (!has) {
+    var row = new Array(headers.length);
+    row[emailCol] = INIT_TEST_EMAIL;
+    master.appendRow(row);
+    Logger.log('AutoInit: test email row added (' + INIT_TEST_EMAIL + ')');
+  }
+
+  sp.setProperty('_inited', 'true');
+  Logger.log('AutoInit complete');
+}
+
+function _runSelfTest() {
+  var sp = PropertiesService.getScriptProperties();
+  var ss = SpreadsheetApp.openById(sp.getProperty('SPREADSHEET_ID'));
+  var master = ss.getSheetByName('生徒マスター');
+  var values = master.getDataRange().getValues();
+  var headers = values[0].map(String);
+  var emailCol = headers.indexOf('email');
+  var pwCol = headers.indexOf('passwordHash');
+  // 既に登録済みなら passwordHash をクリアして再 signup できるようにする
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][emailCol]) === INIT_TEST_EMAIL) {
+      if (values[i][pwCol]) master.getRange(i + 1, pwCol + 1).setValue('');
+      break;
+    }
+  }
+
+  var pwd = 'auto_' + Utilities.getUuid().replace(/-/g, '').slice(0, 12) + 'X9!';
+  var results = [];
+  var token = null;
+
+  results.push(_sStep('signup', function () {
+    return signup(INIT_TEST_EMAIL, pwd, 'student', 'SelfTest');
+  }));
+  results.push(_sStep('login', function () {
+    var r = login(INIT_TEST_EMAIL, pwd);
+    token = r.token;
+    return { userId: r.userId, role: r.role, expiresAt: r.expiresAt };
+  }));
+  if (token) {
+    results.push(_sStep('verify', function () {
+      var v = verifyJwt(token);
+      return { userId: v.userId, jti: v.jti };
+    }));
+    results.push(_sStep('logout', function () {
+      return logout(token);
+    }));
+    results.push(_sStepExpect('verify_after_revoke', function () {
+      return verifyJwt(token);
+    }, 'revoked'));
+  }
+
+  var passed = results.filter(function (r) { return r.ok; }).length;
+  return _json({
+    selftest: results,
+    summary: passed + '/' + results.length + ' passed',
+    note: 'LINE Login は LINE_CHANNEL_ID が PENDING のためスキップ',
+    inited: sp.getProperty('_inited') === 'true'
+  });
+}
+
+function _sStep(name, fn) {
+  try { return { step: name, ok: true, result: fn() }; }
+  catch (e) { return { step: name, ok: false, error: String(e && e.message || e) }; }
+}
+
+function _sStepExpect(name, fn, expected) {
+  try { fn(); return { step: name, ok: false, error: 'expected to throw "' + expected + '"' }; }
+  catch (e) {
+    var msg = String(e && e.message || e);
+    return { step: name, ok: msg === expected, expected: expected, actual: msg };
+  }
+}

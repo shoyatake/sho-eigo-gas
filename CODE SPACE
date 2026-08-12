@@ -1,0 +1,55 @@
+cd trial-v3
+read -s -p "FTPパスワード: " FTPPASS; echo
+
+curl -T trial_day1.html \
+  "ftp://sv16546.xserver.jp/sho-blog.com/public_html/all/trial/v3/trial_day1.html" \
+  --user "xs672802:$FTPPASS" --ftp-pasv --ftp-create-dirs
+
+curl -T trial_day2.html \
+  "ftp://sv16546.xserver.jp/sho-blog.com/public_html/all/trial/v3/trial_day2.html" \
+  --user "xs672802:$FTPPASS" --ftp-pasv
+
+curl -T parent_report.html \
+  "ftp://sv16546.xserver.jp/sho-blog.com/public_html/parent/report.html" \
+  --user "xs672802:$FTPPASS" --ftp-pasv
+
+for u in https://sho-blog.com/all/trial/v3/trial_day1.html \
+         https://sho-blog.com/all/trial/v3/trial_day2.html \
+         https://sho-blog.com/parent/report.html ; do
+  printf "%s → " "$u"; curl -sI "$u" | head -1
+done
+unset FTPPASS
+
+# ------------------------------------------------------------
+# 静的ページ（pages/ 配下）を /public_html/ にデプロイ
+#   作業ディレクトリ：リポジトリルート（pages/ が見える場所）
+# ------------------------------------------------------------
+cd "$(git rev-parse --show-toplevel)"
+read -s -p "FTPパスワード: " FTPPASS; echo
+
+PAGES=(
+  "pages/assets/style.css|sho-blog.com/public_html/assets/style.css"
+  "pages/index.html|sho-blog.com/public_html/index.html"
+  "pages/products/index.html|sho-blog.com/public_html/products/index.html"
+  "pages/lp/index.html|sho-blog.com/public_html/lp/index.html"
+  "pages/monitor/index.html|sho-blog.com/public_html/monitor/index.html"
+  "pages/monitor/dashboard.html|sho-blog.com/public_html/monitor/dashboard.html"
+  "pages/monitor/parent/dashboard.html|sho-blog.com/public_html/monitor/parent/dashboard.html"
+)
+
+for entry in "${PAGES[@]}"; do
+  src="${entry%%|*}"
+  dst="${entry##*|}"
+  curl -T "$src" "ftp://sv16546.xserver.jp/${dst}" \
+    --user "xs672802:$FTPPASS" --ftp-pasv --ftp-create-dirs
+done
+
+for u in https://sho-blog.com/ \
+         https://sho-blog.com/products/ \
+         https://sho-blog.com/lp/ \
+         https://sho-blog.com/monitor/ \
+         https://sho-blog.com/monitor/dashboard.html \
+         https://sho-blog.com/monitor/parent/dashboard.html ; do
+  printf "%s → " "$u"; curl -sI "$u" | head -1
+done
+unset FTPPASS

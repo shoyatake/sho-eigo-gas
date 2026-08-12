@@ -1,1 +1,9 @@
 .claude/
+voice_samples/
+voice_samples.zip
+
+# clasp / Node
+node_modules/
+.clasp.json
+.clasprc.json
+package-lock.json
