@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>ダッシュボード | sho eigo</title>
+<link rel="stylesheet" href="/assets/style.css">
+<style>
+  .dash-box { max-width: 520px; margin: 32px auto; padding: 24px; background: #fff; border: 1px solid var(--border); border-radius: 8px; }
+  .kv-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dotted var(--border); }
+  .kv-row .k { color: var(--muted); font-size: 14px; }
+  .kv-row .v { font-weight: bold; }
+  .btn-secondary { padding: 10px 16px; background: #fff; color: var(--navy); border: 1px solid var(--navy); border-radius: 4px; cursor: pointer; font-size: 14px; }
+  .btn-secondary:hover { background: var(--navy); color: #fff; }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <a href="/" class="brand">sho eigo</a>
+</header>
+
+<main>
+  <div class="dash-box" id="loading">
+    <p>認証確認中…</p>
+  </div>
+
+  <div class="dash-box" id="content" style="display:none;">
+    <h1>ダッシュボード</h1>
+    <div class="kv-row"><span class="k">ユーザー ID</span><span class="v" id="userId">—</span></div>
+    <div class="kv-row"><span class="k">区分</span><span class="v" id="role">—</span></div>
+    <div class="kv-row"><span class="k">セッション有効期限</span><span class="v" id="expiresAt">—</span></div>
+
+    <p style="margin-top: 24px;">ログイン中です。Sprint C1 認証層から JWT を発行し、verify エンドポイントで有効性を確認しています。</p>
+
+    <p style="margin-top: 24px;">
+      <button class="btn-secondary" id="logout-btn">ログアウト</button>
+    </p>
+  </div>
+</main>
+
+<script src="/auth/lib.js"></script>
+<script>
+  (async () => {
+    const claims = await shoAuth.verify();
+    if (!claims) { location.replace('/auth/login.html'); return; }
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+    document.getElementById('userId').textContent = claims.userId || '—';
+    const stored = shoAuth.getUser() || {};
+    document.getElementById('role').textContent = stored.role || '—';
+    document.getElementById('expiresAt').textContent = claims.expiresAt
+      ? new Date(claims.expiresAt).toLocaleString('ja-JP')
+      : '—';
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await shoAuth.logout();
+      location.replace('/auth/login.html');
+    });
+  })();
+</script>
+</body>
+</html>

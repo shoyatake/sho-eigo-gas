@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>あなたの記録 | sho eigo</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/assets/style.css">
+<style>
+  body{font-family:"Hiragino Sans","Noto Sans JP",sans-serif;background:#fafaf7;color:#222;margin:0;padding:24px;line-height:1.6;}
+  .card{background:#fff;border-radius:14px;padding:20px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,0.05);}
+  h1{font-size:20px;color:#1a2d45;margin:0 0 16px;}
+  h2{font-size:13px;color:#888;margin:0 0 6px;font-weight:normal;}
+  .metric{font-size:32px;font-weight:bold;color:#1a2d45;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;}
+  .row .card{flex:1;min-width:140px;text-align:center;}
+  .quote{background:#fff5e6;border-left:4px solid #d2a14d;padding:12px;border-radius:6px;margin-top:8px;}
+  .err{color:#d04b30;}
+  .pro-badge{display:inline-block;background:#1a2d45;color:#fff;padding:2px 10px;border-radius:999px;font-size:11px;margin-left:6px;}
+</style>
+</head>
+<body>
+
+<div id="container">
+  <p>読み込み中...</p>
+</div>
+
+<script>
+(function() {
+  var GAS_DEPLOY_ID = 'YOUR_GAS_DEPLOYMENT_ID';
+  var GAS_BASE = 'https://script.google.com/macros/s/' + GAS_DEPLOY_ID + '/exec';
+  var params = new URLSearchParams(location.search);
+  var uid = params.get('uid') || '';
+
+  var c = document.getElementById('container');
+  if (!uid) {
+    c.innerHTML = '<div class="card"><h1>あなたの記録</h1><p class="err">URL に uid がありません。LINE のメニューからアクセスしてください。</p></div>';
+    return;
+  }
+
+  fetch(GAS_BASE + '?action=child_dashboard&uid=' + encodeURIComponent(uid))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.error) {
+        c.innerHTML = '<div class="card"><h1>あなたの記録</h1><p class="err">記録が見つかりません: ' + d.error + '</p></div>';
+        return;
+      }
+      var nameLine = d.name ? d.name + ' さんの記録' : 'あなたの記録';
+      var proBadge = d.is_pro ? '<span class="pro-badge">Pro</span>' : '';
+      var planNote = d.plan_family ? '<p class="muted small">保護者プラン契約中。月初に「思い出アルバム」が届きます。</p>' : '';
+      var quote = d.last_ai_text
+        ? '<div class="quote">最近書いた英文:<br>「' + escapeHtml(d.last_ai_text) + '」</div>'
+        : '';
+      c.innerHTML =
+        '<div class="card"><h1>' + escapeHtml(nameLine) + proBadge + '</h1>' + planNote + '</div>' +
+        '<div class="row">' +
+          '<div class="card"><h2>続けてる日数</h2><div class="metric">' + (d.days_with_us || 0) + '</div></div>' +
+          '<div class="card"><h2>連続記録</h2><div class="metric">' + (d.streak || 0) + '</div></div>' +
+        '</div>' +
+        '<div class="row">' +
+          '<div class="card"><h2>AI 添削で書いた英文</h2><div class="metric">' + (d.ai_writing_count || 0) + '</div></div>' +
+          '<div class="card"><h2>送ってくれた音声</h2><div class="metric">' + (d.audio_count || 0) + '</div></div>' +
+        '</div>' +
+        '<div class="card">' + quote +
+          '<p class="muted small" style="margin-top:12px;">' +
+          '一回一回の時間が、後から振り返れる「思い出」になります。<br>' +
+          '今日 1 行だけでも英文を送れば、ここに足されます。' +
+          '</p>' +
+        '</div>';
+    })
+    .catch(function(e) {
+      c.innerHTML = '<div class="card"><h1>あなたの記録</h1><p class="err">取得できませんでした: ' + e.message + '</p></div>';
+    });
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"]/g, function(ch) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[ch]; });
+  }
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,113 @@
+/**
+ * Bootstrap.gs — Sprint C1 ワンショット セットアップ
+ *
+ * これを GAS に貼って bootstrap を実行するだけで、
+ *   - 7 件の ScriptProperties 設定
+ *   - 生徒マスターへの email 列追加（無ければ）
+ *   - setupSheets の実行（列拡張 + SESSIONS 作成）
+ * までを 1 ステップで完了する。
+ *
+ * 使い方（翔也さん）:
+ *   1. Sheets/JWT/Auth/LINELogin/Code と同じプロジェクトに本ファイルを追加
+ *   2. 関数 bootstrap を実行
+ *      → スプレッドシートに「_setup_」シートが作られ、UI ダイアログが出る
+ *   3. _setup_ シートに切り替え、value 列を埋める
+ *      （SPREADSHEET_ID は自動入力済、JWT_SECRET は openssl rand -hex 32 で生成）
+ *   4. もう一度 bootstrap を実行 → 全自動で設定 → _setup_ シートは秘匿のため自動削除
+ *   5. ダイアログに表示される「次のアクション」へ
+ *
+ * デプロイと LINE Developers 設定だけは GAS / LINE 側 UI が必須で、
+ * これは自動化不可（権限承認・コールバック登録は本人操作必須のため）。
+ */
+
+function bootstrap() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ui = SpreadsheetApp.getUi();
+  var setup = ss.getSheetByName('_setup_');
+
+  if (!setup) {
+    setup = _bootstrapCreateSetupSheet(ss);
+    ui.alert(
+      'セットアップ準備完了',
+      '画面下部の「_setup_」シートに切り替え、value 列を埋めてから\n' +
+      'もう一度 bootstrap を実行してください。\n\n' +
+      'JWT_SECRET の生成例（Cloud Shell）:\n  openssl rand -hex 32',
+      ui.ButtonSet.OK
+    );
+    return;
+  }
+
+  var lastRow = setup.getLastRow();
+  if (lastRow < 2) throw new Error('_setup_ シートが空です');
+  var values = setup.getRange(2, 1, lastRow - 1, 2).getValues();
+  var props = {};
+  var missing = [];
+  values.forEach(function (row) {
+    var k = String(row[0]).trim();
+    var v = String(row[1]).trim();
+    if (!k) return;
+    if (!v && k !== 'JWT_TTL_DAYS') missing.push(k);
+    if (v && v !== '__after_deploy__') props[k] = v;
+  });
+  if (missing.length > 0) {
+    ui.alert('未入力の項目があります', missing.join('\n'), ui.ButtonSet.OK);
+    return;
+  }
+
+  PropertiesService.getScriptProperties().setProperties(props);
+  Logger.log('ScriptProperties 設定: ' + Object.keys(props).join(', '));
+
+  var master = ss.getSheetByName('生徒マスター');
+  if (!master) throw new Error('シート「生徒マスター」がありません');
+  var lastCol = master.getLastColumn();
+  var headers = lastCol > 0
+    ? master.getRange(1, 1, 1, lastCol).getValues()[0].map(String)
+    : [];
+  if (headers.indexOf('email') < 0) {
+    master.getRange(1, lastCol + 1).setValue('email');
+    Logger.log('email 列を 生徒マスター に追加');
+  }
+
+  setupSheets();
+
+  ss.deleteSheet(setup);
+  Logger.log('_setup_ シートを削除（秘密情報を残さない）');
+
+  var webAppHint = 'デプロイ → 新しいデプロイ → ウェブアプリ\n' +
+    '  実行ユーザー: 自分\n' +
+    '  アクセス: 全員（匿名アクセス可）';
+  ui.alert(
+    'セットアップ完了 ✅',
+    '次のアクション:\n\n' +
+    '【1】 ' + webAppHint + '\n\n' +
+    '【2】 取得した URL を覚えておき、 ⚙ プロジェクト設定 → スクリプトプロパティ で\n' +
+    '       LINE_REDIRECT_URI = <URL>?action=line_callback\n' +
+    '     を設定\n\n' +
+    '【3】 LINE Developers コンソールでコールバック URL に同じ値を登録\n\n' +
+    '【4】 翔也さん側 Cloud Shell で:\n' +
+    '       export WEBAPP_URL=<URL>\n' +
+    '       bash sprint_c1/test.sh',
+    ui.ButtonSet.OK
+  );
+}
+
+function _bootstrapCreateSetupSheet(ss) {
+  var setup = ss.insertSheet('_setup_');
+  var rows = [
+    ['key', 'value', '備考'],
+    ['SPREADSHEET_ID', ss.getId(), '自動入力済（編集不要）'],
+    ['JWT_SECRET', '', '64文字のランダム文字列（openssl rand -hex 32 の出力）'],
+    ['JWT_TTL_DAYS', '30', '省略可、既定 30 日'],
+    ['LINE_CHANNEL_ID', '', 'LINE Developers → Login チャネル → 基本設定'],
+    ['LINE_CHANNEL_SECRET', '', '同上 → チャネルシークレット'],
+    ['LINE_REDIRECT_URI', '__after_deploy__', 'デプロイ後に手動で設定（Webアプリ URL+?action=line_callback）'],
+    ['FRONTEND_REDIRECT_URI', 'https://sho-blog.com/monitor/dashboard.html', 'LINE 認証成功後の遷移先']
+  ];
+  setup.getRange(1, 1, rows.length, 3).setValues(rows);
+  setup.setColumnWidth(1, 220);
+  setup.setColumnWidth(2, 420);
+  setup.setColumnWidth(3, 380);
+  setup.getRange('A1:C1').setFontWeight('bold').setBackground('#e0e0e0');
+  setup.setFrozenRows(1);
+  return setup;
+}
