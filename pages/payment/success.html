@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ご購入ありがとうございます | sho eigo</title>
+<title>ご登録ありがとうございます | sho eigo</title>
 <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
@@ -13,35 +13,32 @@
 </header>
 
 <main class="container" style="text-align:center; padding-top:60px;">
-  <h1 style="color:#1a2d45;">ご購入ありがとうございます</h1>
-  <p>Pro プランへの登録が完了しました。</p>
+  <h1 style="color:#1a2d45;">ご登録ありがとうございます</h1>
+  <p>プランへの登録が完了しました。</p>
   <p class="muted small" id="session-info"></p>
 
   <p style="margin-top:32px;">
-    LINE トーク画面に戻ると、Pro 専用のリッチメニューが表示されます。<br>
-    すぐに今日の配信が届きます。
+    LINE トーク画面に戻ると、ご登録完了のメッセージが届いています。<br>
+    14 日間全額返金保証付きなので、まずは安心してお試しください。
   </p>
 
   <div style="margin-top:32px;">
-    <a href="https://line.me/R/oaMessage/@YOUR_LINE_ID/?Pro登録完了" class="btn accent">LINE に戻る</a>
+    <a href="https://line.me/R/oaMessage/@YOUR_LINE_ID/?登録完了" class="btn accent">LINE に戻る</a>
   </div>
 
   <p class="muted small" style="margin-top:48px;">
-    決済明細・解約は <a href="https://billing.stripe.com/p/login/test_xxxxxxxxx" target="_blank" rel="noopener">カスタマーポータル</a> から（決済完了メールにも記載）。
+    解約はいつでも、LINE で「解約」と送るとお客様ポータル URL が届きます。
   </p>
 </main>
 
-<footer class="site">
-  © sho eigo
-</footer>
+<footer class="site">© sho eigo</footer>
 
 <script>
 (function() {
-  var params = new URLSearchParams(location.search);
-  var sid = params.get('session_id');
+  var sid = new URLSearchParams(location.search).get('session_id');
   if (sid) {
     var el = document.getElementById('session-info');
-    if (el) el.textContent = 'セッションID: ' + sid.substr(0, 14) + '...';
+    if (el) el.textContent = 'セッション ID: ' + sid.substr(0, 14) + '...';
   }
 })();
 </script>

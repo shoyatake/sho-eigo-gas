@@ -1,0 +1,66 @@
+name: Sho Growth Engine
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "daily / weekly / seo / offer"
+        required: true
+        default: "daily"
+        type: choice
+        options:
+          - daily
+          - weekly
+          - seo
+          - offer
+      dry_run:
+        description: "true: artifactのみ / false: GitHub Issue作成"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+  schedule:
+    # 22:55 UTC = 07:55 JST
+    - cron: "55 22 * * *"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: sho-growth-engine
+  cancel-in-progress: false
+
+jobs:
+  growth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.4-mini' }}
+      MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'daily' }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+      SITE_URL: "https://sho-blog.com/"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Generate growth brief
+        run: node scripts/growth/sho-growth-engine.mjs
+
+      - name: Upload growth artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sho-growth-output
+          path: growth-output/*.md

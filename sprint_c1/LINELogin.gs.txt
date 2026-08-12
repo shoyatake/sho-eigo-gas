@@ -1,0 +1,106 @@
+/**
+ * LINELogin.gs — LINE OAuth 2.0 / OpenID Connect ログインフロー
+ *   公開関数:
+ *     lineGetAuthUrl(state)        認可 URL を生成（フロントが state を発行）
+ *     lineHandleCallback(code)     コールバックの code を access_token / id_token に交換し、
+ *                                   email を 生徒マスター と照合してログイン JWT を発行
+ *
+ *   ScriptProperties:
+ *     LINE_CHANNEL_ID
+ *     LINE_CHANNEL_SECRET
+ *     LINE_REDIRECT_URI            GAS Web アプリ URL + "?action=line_callback"
+ *
+ *   前提:
+ *     - LINE Developers コンソールで OpenID Connect + email スコープが有効
+ *     - 生徒マスターに email 列があり、対象生徒が email/password で signup 済み
+ *     - Auth.gs の _master / _findRowByEmail、JWT.gs の issueJwt を再利用
+ */
+
+function lineGetAuthUrl(state) {
+  if (!state) throw new Error('state が空です');
+  var p = _lineProps();
+  return 'https://access.line.me/oauth2/v2.1/authorize'
+    + '?response_type=code'
+    + '&client_id=' + encodeURIComponent(p.channelId)
+    + '&redirect_uri=' + encodeURIComponent(p.redirectUri)
+    + '&state=' + encodeURIComponent(state)
+    + '&scope=' + encodeURIComponent('profile openid email');
+}
+
+function lineHandleCallback(code) {
+  if (!code) throw new Error('code が空です');
+  var p = _lineProps();
+
+  // ---- 1. code → access_token / id_token ----
+  var tokenRes = UrlFetchApp.fetch('https://api.line.me/oauth2/v2.1/token', {
+    method: 'post',
+    contentType: 'application/x-www-form-urlencoded',
+    payload: {
+      grant_type: 'authorization_code',
+      code: code,
+      redirect_uri: p.redirectUri,
+      client_id: p.channelId,
+      client_secret: p.channelSecret
+    },
+    muteHttpExceptions: true
+  });
+  if (tokenRes.getResponseCode() !== 200) {
+    throw new Error('LINE token 交換失敗: ' + tokenRes.getContentText());
+  }
+  var idToken = JSON.parse(tokenRes.getContentText()).id_token;
+  if (!idToken) throw new Error('id_token が返らない（openid スコープを確認）');
+
+  // ---- 2. id_token verify → email / name ----
+  var verifyRes = UrlFetchApp.fetch('https://api.line.me/oauth2/v2.1/verify', {
+    method: 'post',
+    contentType: 'application/x-www-form-urlencoded',
+    payload: { id_token: idToken, client_id: p.channelId },
+    muteHttpExceptions: true
+  });
+  if (verifyRes.getResponseCode() !== 200) {
+    throw new Error('LINE id_token verify 失敗: ' + verifyRes.getContentText());
+  }
+  var claims = JSON.parse(verifyRes.getContentText());
+  var email = claims.email;
+  var lineDisplayName = claims.name || '';
+  if (!email) throw new Error('LINE から email が取得できない（email スコープが必要）');
+
+  // ---- 3. 生徒マスター 照合 → JWT 発行 ----
+  var ctx = _master();
+  var rowIdx = _findRowByEmail(ctx, email);
+  if (rowIdx < 0) throw new Error('未登録の email です: ' + email);
+
+  var row = ctx.values[rowIdx];
+  if (!row[ctx.colIdx.passwordHash]) {
+    throw new Error('先に email/password で signup を完了してください');
+  }
+
+  var sheetRow = rowIdx + 2;
+  if (lineDisplayName) {
+    ctx.sheet.getRange(sheetRow, ctx.colIdx.lineDisplayName + 1).setValue(lineDisplayName);
+  }
+  ctx.sheet.getRange(sheetRow, ctx.colIdx.lastLoginAt + 1).setValue(new Date());
+
+  var jwt = issueJwt(email);
+  Logger.log('LINE login: ' + email);
+  return {
+    token: jwt.token,
+    userId: email,
+    role: String(row[ctx.colIdx.role] || ''),
+    lineDisplayName: lineDisplayName,
+    expiresAt: jwt.expiresAt
+  };
+}
+
+// ---------- 内部ヘルパー ----------
+
+function _lineProps() {
+  var sp = PropertiesService.getScriptProperties();
+  var channelId = sp.getProperty('LINE_CHANNEL_ID');
+  var channelSecret = sp.getProperty('LINE_CHANNEL_SECRET');
+  var redirectUri = sp.getProperty('LINE_REDIRECT_URI');
+  if (!channelId) throw new Error('ScriptProperties に LINE_CHANNEL_ID がありません');
+  if (!channelSecret) throw new Error('ScriptProperties に LINE_CHANNEL_SECRET がありません');
+  if (!redirectUri) throw new Error('ScriptProperties に LINE_REDIRECT_URI がありません');
+  return { channelId: channelId, channelSecret: channelSecret, redirectUri: redirectUri };
+}
