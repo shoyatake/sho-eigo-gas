@@ -1,0 +1,731 @@
+/**
+ * AllInOne.gs — Sheets / JWT / Auth / LINELogin / Code / Bootstrap を 1 ファイルに統合
+ *
+ * 使い方:
+ *   1. GAS エディタで Code.gs を開き、内容を全削除して本ファイルを貼り付け
+ *   2. Ctrl+S で保存
+ *   3. 関数 bootstrap を実行（_setup_ シートが作られる）
+ *   4. _setup_ シートに値を入れて再度 bootstrap を実行（自動セットアップ）
+ *   5. デプロイ → LINE 設定 → test.sh で動作確認
+ *
+ * 元の 6 ファイルから機械的に連結したもの。動作は同一。
+ * 編集は元の sprint_c1/*.gs.txt 側で行い、ここで再生成すること。
+ */
+
+
+// ============================================================
+// === Bootstrap.gs.txt
+// ============================================================
+
+/**
+ * Bootstrap.gs — Sprint C1 ワンショット セットアップ
+ *
+ * これを GAS に貼って bootstrap を実行するだけで、
+ *   - 7 件の ScriptProperties 設定
+ *   - 生徒マスターへの email 列追加（無ければ）
+ *   - setupSheets の実行（列拡張 + SESSIONS 作成）
+ * までを 1 ステップで完了する。
+ *
+ * 使い方（翔也さん）:
+ *   1. Sheets/JWT/Auth/LINELogin/Code と同じプロジェクトに本ファイルを追加
+ *   2. 関数 bootstrap を実行
+ *      → スプレッドシートに「_setup_」シートが作られ、UI ダイアログが出る
+ *   3. _setup_ シートに切り替え、value 列を埋める
+ *      （SPREADSHEET_ID は自動入力済、JWT_SECRET は openssl rand -hex 32 で生成）
+ *   4. もう一度 bootstrap を実行 → 全自動で設定 → _setup_ シートは秘匿のため自動削除
+ *   5. ダイアログに表示される「次のアクション」へ
+ *
+ * デプロイと LINE Developers 設定だけは GAS / LINE 側 UI が必須で、
+ * これは自動化不可（権限承認・コールバック登録は本人操作必須のため）。
+ */
+
+function bootstrap() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ui = SpreadsheetApp.getUi();
+  var setup = ss.getSheetByName('_setup_');
+
+  if (!setup) {
+    setup = _bootstrapCreateSetupSheet(ss);
+    ui.alert(
+      'セットアップ準備完了',
+      '画面下部の「_setup_」シートに切り替え、value 列を埋めてから\n' +
+      'もう一度 bootstrap を実行してください。\n\n' +
+      'JWT_SECRET の生成例（Cloud Shell）:\n  openssl rand -hex 32',
+      ui.ButtonSet.OK
+    );
+    return;
+  }
+
+  var lastRow = setup.getLastRow();
+  if (lastRow < 2) throw new Error('_setup_ シートが空です');
+  var values = setup.getRange(2, 1, lastRow - 1, 2).getValues();
+  var props = {};
+  var missing = [];
+  values.forEach(function (row) {
+    var k = String(row[0]).trim();
+    var v = String(row[1]).trim();
+    if (!k) return;
+    if (!v && k !== 'JWT_TTL_DAYS') missing.push(k);
+    if (v && v !== '__after_deploy__') props[k] = v;
+  });
+  if (missing.length > 0) {
+    ui.alert('未入力の項目があります', missing.join('\n'), ui.ButtonSet.OK);
+    return;
+  }
+
+  PropertiesService.getScriptProperties().setProperties(props);
+  Logger.log('ScriptProperties 設定: ' + Object.keys(props).join(', '));
+
+  var master = ss.getSheetByName('生徒マスター');
+  if (!master) throw new Error('シート「生徒マスター」がありません');
+  var lastCol = master.getLastColumn();
+  var headers = lastCol > 0
+    ? master.getRange(1, 1, 1, lastCol).getValues()[0].map(String)
+    : [];
+  if (headers.indexOf('email') < 0) {
+    master.getRange(1, lastCol + 1).setValue('email');
+    Logger.log('email 列を 生徒マスター に追加');
+  }
+
+  setupSheets();
+
+  ss.deleteSheet(setup);
+  Logger.log('_setup_ シートを削除（秘密情報を残さない）');
+
+  var webAppHint = 'デプロイ → 新しいデプロイ → ウェブアプリ\n' +
+    '  実行ユーザー: 自分\n' +
+    '  アクセス: 全員（匿名アクセス可）';
+  ui.alert(
+    'セットアップ完了 ✅',
+    '次のアクション:\n\n' +
+    '【1】 ' + webAppHint + '\n\n' +
+    '【2】 取得した URL を覚えておき、 ⚙ プロジェクト設定 → スクリプトプロパティ で\n' +
+    '       LINE_REDIRECT_URI = <URL>?action=line_callback\n' +
+    '     を設定\n\n' +
+    '【3】 LINE Developers コンソールでコールバック URL に同じ値を登録\n\n' +
+    '【4】 翔也さん側 Cloud Shell で:\n' +
+    '       export WEBAPP_URL=<URL>\n' +
+    '       bash sprint_c1/test.sh',
+    ui.ButtonSet.OK
+  );
+}
+
+function _bootstrapCreateSetupSheet(ss) {
+  var setup = ss.insertSheet('_setup_');
+  var rows = [
+    ['key', 'value', '備考'],
+    ['SPREADSHEET_ID', ss.getId(), '自動入力済（編集不要）'],
+    ['JWT_SECRET', '', '64文字のランダム文字列（openssl rand -hex 32 の出力）'],
+    ['JWT_TTL_DAYS', '30', '省略可、既定 30 日'],
+    ['LINE_CHANNEL_ID', '', 'LINE Developers → Login チャネル → 基本設定'],
+    ['LINE_CHANNEL_SECRET', '', '同上 → チャネルシークレット'],
+    ['LINE_REDIRECT_URI', '__after_deploy__', 'デプロイ後に手動で設定（Webアプリ URL+?action=line_callback）'],
+    ['FRONTEND_REDIRECT_URI', 'https://sho-blog.com/monitor/dashboard.html', 'LINE 認証成功後の遷移先']
+  ];
+  setup.getRange(1, 1, rows.length, 3).setValues(rows);
+  setup.setColumnWidth(1, 220);
+  setup.setColumnWidth(2, 420);
+  setup.setColumnWidth(3, 380);
+  setup.getRange('A1:C1').setFontWeight('bold').setBackground('#e0e0e0');
+  setup.setFrozenRows(1);
+  return setup;
+}
+
+// ============================================================
+// === Sheets.gs.txt
+// ============================================================
+
+/**
+ * setupSheets
+ *   - 生徒マスター: 必要列が無ければ末尾に追加（既存列・既存データには触らない）
+ *   - Users:        空なら削除、データがあれば警告のみ
+ *   - parent_links: 空なら削除、データがあれば警告のみ
+ *   - SESSIONS:     無ければ新規作成しヘッダーを設定
+ *
+ * SPREADSHEET_ID は ScriptProperties から取得する（コード直書き禁止）。
+ * エラーは握りつぶさず、その場で throw させる（try-catch を使わない）。
+ */
+function setupSheets() {
+  var spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  if (!spreadsheetId) {
+    throw new Error('ScriptProperties に SPREADSHEET_ID が設定されていません');
+  }
+  var ss = SpreadsheetApp.openById(spreadsheetId);
+
+  Logger.log('========== Setup 開始 ==========');
+  Logger.log('Spreadsheet: ' + ss.getName());
+
+  // ---------- Step 2: 生徒マスターの列拡張 ----------
+  var master = ss.getSheetByName('生徒マスター');
+  if (!master) {
+    throw new Error('シート「生徒マスター」が見つかりません');
+  }
+  var dataRows = Math.max(0, master.getLastRow() - 1);
+  Logger.log('生徒マスター: ' + dataRows + '行のデータ');
+
+  var requiredColumns = [
+    'passwordHash',
+    'lineDisplayName',
+    'role',
+    'linkedUserIds',
+    'inviteCode',
+    'lastLoginAt'
+  ];
+  var lastCol = master.getLastColumn();
+  var headers = lastCol > 0
+    ? master.getRange(1, 1, 1, lastCol).getValues()[0].map(function (v) { return String(v); })
+    : [];
+  for (var i = 0; i < requiredColumns.length; i++) {
+    var name = requiredColumns[i];
+    if (headers.indexOf(name) >= 0) {
+      Logger.log('  ⏩ 既存: ' + name);
+    } else {
+      var newCol = master.getLastColumn() + 1;
+      master.getRange(1, newCol).setValue(name);
+      headers.push(name);
+      Logger.log('  ✅ 列追加: ' + name);
+    }
+  }
+
+  // ---------- Step 3: Users シート（空なら削除） ----------
+  var users = ss.getSheetByName('Users');
+  if (users) {
+    if (users.getLastRow() - 1 <= 0) {
+      ss.deleteSheet(users);
+      Logger.log('Users シート: 空だったので削除');
+    } else {
+      Logger.log('⚠️ Users シート: データが存在するため削除をスキップ（' + (users.getLastRow() - 1) + '行）');
+    }
+  } else {
+    Logger.log('Users シート: 存在しない（スキップ）');
+  }
+
+  // ---------- Step 4: parent_links シート（空なら削除） ----------
+  var parentLinks = ss.getSheetByName('parent_links');
+  if (parentLinks) {
+    if (parentLinks.getLastRow() - 1 <= 0) {
+      ss.deleteSheet(parentLinks);
+      Logger.log('parent_links シート: 空だったので削除');
+    } else {
+      Logger.log('⚠️ parent_links シート: データが存在するため削除をスキップ（' + (parentLinks.getLastRow() - 1) + '行）');
+    }
+  } else {
+    Logger.log('parent_links シート: 存在しない（スキップ）');
+  }
+
+  // ---------- Step 5: SESSIONS シート作成 ----------
+  var sessions = ss.getSheetByName('SESSIONS');
+  if (sessions) {
+    Logger.log('SESSIONS シート: 既に存在するためスキップ');
+  } else {
+    sessions = ss.insertSheet('SESSIONS');
+    var sessionHeaders = ['jwtId', 'userId', 'issuedAt', 'expiresAt', 'revoked'];
+    sessions.getRange(1, 1, 1, sessionHeaders.length).setValues([sessionHeaders]);
+    sessions.setFrozenRows(1);
+    Logger.log('SESSIONS シート: 作成完了');
+  }
+
+  Logger.log('========== Setup 完了 ==========');
+}
+
+// ============================================================
+// === JWT.gs.txt
+// ============================================================
+
+/**
+ * JWT.gs — HS256 JWT 発行・検証ライブラリ
+ *   公開関数: issueJwt(userId) / verifyJwt(token) / revokeJwt(jti)
+ *   設定値:   ScriptProperties[SPREADSHEET_ID, JWT_SECRET, JWT_TTL_DAYS(任意/既定30)]
+ *   依存:     SESSIONS シート（setupSheets 済みであること）
+ *
+ * 検証失敗は必ず throw する。try-catch で握りつぶさない。
+ * 署名比較はタイミング攻撃を避けるため定時間で行う。
+ */
+
+function issueJwt(userId) {
+  if (!userId) throw new Error('userId が空です');
+  var props = _props();
+  var ttlDays = Number(props.JWT_TTL_DAYS || 30);
+  var nowSec = Math.floor(Date.now() / 1000);
+  var expSec = nowSec + ttlDays * 86400;
+  var jti = Utilities.getUuid().replace(/-/g, ''); // 32 hex (16 bytes 相当)
+
+  var header = { alg: 'HS256', typ: 'JWT' };
+  var payload = { sub: userId, iat: nowSec, exp: expSec, jti: jti };
+
+  var headerB64 = _b64UrlEncodeStr(JSON.stringify(header));
+  var payloadB64 = _b64UrlEncodeStr(JSON.stringify(payload));
+  var signingInput = headerB64 + '.' + payloadB64;
+  var sigBytes = Utilities.computeHmacSha256Signature(signingInput, props.JWT_SECRET);
+  var token = signingInput + '.' + _b64UrlEncode(sigBytes);
+
+  var issuedAt = new Date(nowSec * 1000);
+  var expiresAt = new Date(expSec * 1000);
+  var sessions = _sessionsSheet(props.SPREADSHEET_ID);
+  sessions.appendRow([jti, userId, issuedAt, expiresAt, false]);
+
+  return { token: token, jti: jti, expiresAt: expiresAt };
+}
+
+function verifyJwt(token) {
+  if (!token || typeof token !== 'string') throw new Error('token が空です');
+  var parts = token.split('.');
+  if (parts.length !== 3) throw new Error('invalid token format');
+  var headerB64 = parts[0], payloadB64 = parts[1], sigB64 = parts[2];
+
+  var props = _props();
+  var expected = Utilities.computeHmacSha256Signature(headerB64 + '.' + payloadB64, props.JWT_SECRET);
+  var actual = _b64UrlDecode(sigB64);
+  if (!_constantTimeEqual(expected, actual)) throw new Error('invalid signature');
+
+  var payloadJson = Utilities.newBlob(_b64UrlDecode(payloadB64)).getDataAsString();
+  var payload = JSON.parse(payloadJson);
+  var nowSec = Math.floor(Date.now() / 1000);
+  if (typeof payload.exp !== 'number' || payload.exp < nowSec) throw new Error('expired');
+  if (!payload.jti || !payload.sub) throw new Error('invalid claims');
+
+  var sessions = _sessionsSheet(props.SPREADSHEET_ID);
+  var values = sessions.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === payload.jti) {
+      if (values[i][4] === true) throw new Error('revoked');
+      return {
+        userId: payload.sub,
+        jti: payload.jti,
+        issuedAt: new Date(payload.iat * 1000),
+        expiresAt: new Date(payload.exp * 1000)
+      };
+    }
+  }
+  throw new Error('session not found');
+}
+
+function revokeJwt(jti) {
+  if (!jti) throw new Error('jti が空です');
+  var props = _props();
+  var sessions = _sessionsSheet(props.SPREADSHEET_ID);
+  var values = sessions.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === jti) {
+      sessions.getRange(i + 1, 5).setValue(true);
+      Logger.log('revokeJwt: jti=' + jti + ' を revoked=true に更新');
+      return true;
+    }
+  }
+  Logger.log('⚠️ revokeJwt: jti が見つからない (' + jti + ')');
+  return false;
+}
+
+// ---------- 内部ヘルパー ----------
+
+function _props() {
+  var sp = PropertiesService.getScriptProperties();
+  var spreadsheetId = sp.getProperty('SPREADSHEET_ID');
+  var secret = sp.getProperty('JWT_SECRET');
+  if (!spreadsheetId) throw new Error('ScriptProperties に SPREADSHEET_ID が設定されていません');
+  if (!secret) throw new Error('ScriptProperties に JWT_SECRET が設定されていません');
+  return {
+    SPREADSHEET_ID: spreadsheetId,
+    JWT_SECRET: secret,
+    JWT_TTL_DAYS: sp.getProperty('JWT_TTL_DAYS')
+  };
+}
+
+function _sessionsSheet(spreadsheetId) {
+  var sheet = SpreadsheetApp.openById(spreadsheetId).getSheetByName('SESSIONS');
+  if (!sheet) throw new Error('SESSIONS シートが存在しません。setupSheets を先に実行してください');
+  return sheet;
+}
+
+function _b64UrlEncodeStr(str) {
+  return _b64UrlEncode(Utilities.newBlob(str).getBytes());
+}
+
+function _b64UrlEncode(bytes) {
+  return Utilities.base64Encode(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function _b64UrlDecode(str) {
+  var pad = str.length % 4;
+  var padded = str.replace(/-/g, '+').replace(/_/g, '/') + (pad ? '===='.slice(pad) : '');
+  return Utilities.base64Decode(padded);
+}
+
+function _constantTimeEqual(a, b) {
+  var la = a.length, lb = b.length;
+  var len = Math.max(la, lb);
+  var diff = la ^ lb;
+  for (var i = 0; i < len; i++) {
+    var av = i < la ? (a[i] & 0xff) : 0;
+    var bv = i < lb ? (b[i] & 0xff) : 0;
+    diff |= (av ^ bv);
+  }
+  return diff === 0;
+}
+
+// ============================================================
+// === Auth.gs.txt
+// ============================================================
+
+/**
+ * Auth.gs — 認証 API（signup / login / logout）
+ *   依存:
+ *     - JWT.gs の issueJwt / verifyJwt / revokeJwt
+ *     - setupSheets 済みの 生徒マスター（email, passwordHash, role,
+ *       lineDisplayName, inviteCode, lastLoginAt 列を含むこと）
+ *
+ * パスワードハッシュ:
+ *   GAS 標準には bcrypt が無いため、PBKDF2 ライク（HMAC-SHA256 を 1,000 回反復）で代替。
+ *   保存形式: "pbkdf2$<iter>$<saltHex>$<hashB64>"
+ *
+ * 例外は throw、握りつぶさない。
+ */
+
+var AUTH_HASH_ITERATIONS = 1000;
+
+function signup(email, password, role, lineDisplayName) {
+  if (!email) throw new Error('email が空です');
+  if (!password || password.length < 8) throw new Error('password は 8 文字以上');
+  if (['parent', 'student', 'single'].indexOf(role) < 0) throw new Error('role は parent/student/single のいずれか');
+
+  var ctx = _master();
+  var rowIdx = _findRowByEmail(ctx, email);
+  if (rowIdx < 0) throw new Error('email が 生徒マスター に存在しません');
+
+  var row = ctx.values[rowIdx];
+  if (row[ctx.colIdx.passwordHash]) throw new Error('既に登録済みの email');
+
+  var saltHex = Utilities.getUuid().replace(/-/g, '');
+  var stored = 'pbkdf2$' + AUTH_HASH_ITERATIONS + '$' + saltHex + '$' + _hash(password, saltHex, AUTH_HASH_ITERATIONS);
+  var inviteCode = _generateUniqueInviteCode(ctx);
+  var sheetRow = rowIdx + 2; // ヘッダー1行 + 1-based
+
+  ctx.sheet.getRange(sheetRow, ctx.colIdx.passwordHash + 1).setValue(stored);
+  ctx.sheet.getRange(sheetRow, ctx.colIdx.role + 1).setValue(role);
+  if (lineDisplayName) {
+    ctx.sheet.getRange(sheetRow, ctx.colIdx.lineDisplayName + 1).setValue(lineDisplayName);
+  }
+  ctx.sheet.getRange(sheetRow, ctx.colIdx.inviteCode + 1).setValue(inviteCode);
+  ctx.sheet.getRange(sheetRow, ctx.colIdx.lastLoginAt + 1).setValue(new Date());
+
+  var jwt = issueJwt(email);
+  Logger.log('signup: ' + email + ' as ' + role);
+  return { token: jwt.token, userId: email, role: role, inviteCode: inviteCode, expiresAt: jwt.expiresAt };
+}
+
+function login(email, password) {
+  if (!email || !password) throw new Error('email/password が空です');
+  var ctx = _master();
+  var rowIdx = _findRowByEmail(ctx, email);
+  if (rowIdx < 0) throw new Error('invalid credentials');
+
+  var row = ctx.values[rowIdx];
+  var stored = String(row[ctx.colIdx.passwordHash] || '');
+  if (!stored) throw new Error('invalid credentials');
+  if (!_verify(password, stored)) throw new Error('invalid credentials');
+
+  var sheetRow = rowIdx + 2;
+  ctx.sheet.getRange(sheetRow, ctx.colIdx.lastLoginAt + 1).setValue(new Date());
+
+  var role = String(row[ctx.colIdx.role] || '');
+  var jwt = issueJwt(email);
+  Logger.log('login: ' + email);
+  return { token: jwt.token, userId: email, role: role, expiresAt: jwt.expiresAt };
+}
+
+function logout(token) {
+  var claims = verifyJwt(token);
+  var ok = revokeJwt(claims.jti);
+  Logger.log('logout: ' + claims.userId + ' jti=' + claims.jti);
+  return { ok: ok, userId: claims.userId };
+}
+
+// ---------- 内部ヘルパー ----------
+
+function _master() {
+  var spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  if (!spreadsheetId) throw new Error('ScriptProperties に SPREADSHEET_ID が設定されていません');
+  var sheet = SpreadsheetApp.openById(spreadsheetId).getSheetByName('生徒マスター');
+  if (!sheet) throw new Error('シート「生徒マスター」が存在しません');
+  var values = sheet.getDataRange().getValues();
+  if (values.length < 1) throw new Error('生徒マスターが空です');
+  var headers = values[0].map(function (v) { return String(v); });
+  var required = ['email', 'passwordHash', 'role', 'lineDisplayName', 'inviteCode', 'lastLoginAt'];
+  var colIdx = {};
+  for (var i = 0; i < required.length; i++) {
+    var idx = headers.indexOf(required[i]);
+    if (idx < 0) throw new Error('生徒マスターに列が存在しません: ' + required[i]);
+    colIdx[required[i]] = idx;
+  }
+  return { sheet: sheet, values: values.slice(1), colIdx: colIdx };
+}
+
+function _findRowByEmail(ctx, email) {
+  var col = ctx.colIdx.email;
+  for (var i = 0; i < ctx.values.length; i++) {
+    if (String(ctx.values[i][col]) === email) return i;
+  }
+  return -1;
+}
+
+function _hash(password, saltHex, iterations) {
+  var bytes = Utilities.computeHmacSha256Signature(password + saltHex, saltHex);
+  for (var i = 1; i < iterations; i++) {
+    bytes = Utilities.computeHmacSha256Signature(bytes, saltHex);
+  }
+  return Utilities.base64Encode(bytes);
+}
+
+function _verify(password, stored) {
+  var parts = String(stored).split('$');
+  if (parts.length !== 4 || parts[0] !== 'pbkdf2') return false;
+  var iters = Number(parts[1]);
+  if (!iters || iters < 1) return false;
+  var computed = _hash(password, parts[2], iters);
+  return _ctEqualStr(computed, parts[3]);
+}
+
+function _ctEqualStr(a, b) {
+  var len = Math.max(a.length, b.length);
+  var diff = a.length ^ b.length;
+  for (var i = 0; i < len; i++) {
+    var av = i < a.length ? a.charCodeAt(i) : 0;
+    var bv = i < b.length ? b.charCodeAt(i) : 0;
+    diff |= (av ^ bv);
+  }
+  return diff === 0;
+}
+
+function _generateUniqueInviteCode(ctx) {
+  var col = ctx.colIdx.inviteCode;
+  for (var attempt = 0; attempt < 8; attempt++) {
+    var code = ('00000000' + Math.floor(Math.random() * 100000000).toString()).slice(-8);
+    var dup = false;
+    for (var i = 0; i < ctx.values.length; i++) {
+      if (String(ctx.values[i][col]) === code) { dup = true; break; }
+    }
+    if (!dup) return code;
+  }
+  throw new Error('inviteCode の生成に失敗（衝突）');
+}
+
+// ============================================================
+// === LINELogin.gs.txt
+// ============================================================
+
+/**
+ * LINELogin.gs — LINE OAuth 2.0 / OpenID Connect ログインフロー
+ *   公開関数:
+ *     lineGetAuthUrl(state)        認可 URL を生成（フロントが state を発行）
+ *     lineHandleCallback(code)     コールバックの code を access_token / id_token に交換し、
+ *                                   email を 生徒マスター と照合してログイン JWT を発行
+ *
+ *   ScriptProperties:
+ *     LINE_CHANNEL_ID
+ *     LINE_CHANNEL_SECRET
+ *     LINE_REDIRECT_URI            GAS Web アプリ URL + "?action=line_callback"
+ *
+ *   前提:
+ *     - LINE Developers コンソールで OpenID Connect + email スコープが有効
+ *     - 生徒マスターに email 列があり、対象生徒が email/password で signup 済み
+ *     - Auth.gs の _master / _findRowByEmail、JWT.gs の issueJwt を再利用
+ */
+
+function lineGetAuthUrl(state) {
+  if (!state) throw new Error('state が空です');
+  var p = _lineProps();
+  return 'https://access.line.me/oauth2/v2.1/authorize'
+    + '?response_type=code'
+    + '&client_id=' + encodeURIComponent(p.channelId)
+    + '&redirect_uri=' + encodeURIComponent(p.redirectUri)
+    + '&state=' + encodeURIComponent(state)
+    + '&scope=' + encodeURIComponent('profile openid email');
+}
+
+function lineHandleCallback(code) {
+  if (!code) throw new Error('code が空です');
+  var p = _lineProps();
+
+  // ---- 1. code → access_token / id_token ----
+  var tokenRes = UrlFetchApp.fetch('https://api.line.me/oauth2/v2.1/token', {
+    method: 'post',
+    contentType: 'application/x-www-form-urlencoded',
+    payload: {
+      grant_type: 'authorization_code',
+      code: code,
+      redirect_uri: p.redirectUri,
+      client_id: p.channelId,
+      client_secret: p.channelSecret
+    },
+    muteHttpExceptions: true
+  });
+  if (tokenRes.getResponseCode() !== 200) {
+    throw new Error('LINE token 交換失敗: ' + tokenRes.getContentText());
+  }
+  var idToken = JSON.parse(tokenRes.getContentText()).id_token;
+  if (!idToken) throw new Error('id_token が返らない（openid スコープを確認）');
+
+  // ---- 2. id_token verify → email / name ----
+  var verifyRes = UrlFetchApp.fetch('https://api.line.me/oauth2/v2.1/verify', {
+    method: 'post',
+    contentType: 'application/x-www-form-urlencoded',
+    payload: { id_token: idToken, client_id: p.channelId },
+    muteHttpExceptions: true
+  });
+  if (verifyRes.getResponseCode() !== 200) {
+    throw new Error('LINE id_token verify 失敗: ' + verifyRes.getContentText());
+  }
+  var claims = JSON.parse(verifyRes.getContentText());
+  var email = claims.email;
+  var lineDisplayName = claims.name || '';
+  if (!email) throw new Error('LINE から email が取得できない（email スコープが必要）');
+
+  // ---- 3. 生徒マスター 照合 → JWT 発行 ----
+  var ctx = _master();
+  var rowIdx = _findRowByEmail(ctx, email);
+  if (rowIdx < 0) throw new Error('未登録の email です: ' + email);
+
+  var row = ctx.values[rowIdx];
+  if (!row[ctx.colIdx.passwordHash]) {
+    throw new Error('先に email/password で signup を完了してください');
+  }
+
+  var sheetRow = rowIdx + 2;
+  if (lineDisplayName) {
+    ctx.sheet.getRange(sheetRow, ctx.colIdx.lineDisplayName + 1).setValue(lineDisplayName);
+  }
+  ctx.sheet.getRange(sheetRow, ctx.colIdx.lastLoginAt + 1).setValue(new Date());
+
+  var jwt = issueJwt(email);
+  Logger.log('LINE login: ' + email);
+  return {
+    token: jwt.token,
+    userId: email,
+    role: String(row[ctx.colIdx.role] || ''),
+    lineDisplayName: lineDisplayName,
+    expiresAt: jwt.expiresAt
+  };
+}
+
+// ---------- 内部ヘルパー ----------
+
+function _lineProps() {
+  var sp = PropertiesService.getScriptProperties();
+  var channelId = sp.getProperty('LINE_CHANNEL_ID');
+  var channelSecret = sp.getProperty('LINE_CHANNEL_SECRET');
+  var redirectUri = sp.getProperty('LINE_REDIRECT_URI');
+  if (!channelId) throw new Error('ScriptProperties に LINE_CHANNEL_ID がありません');
+  if (!channelSecret) throw new Error('ScriptProperties に LINE_CHANNEL_SECRET がありません');
+  if (!redirectUri) throw new Error('ScriptProperties に LINE_REDIRECT_URI がありません');
+  return { channelId: channelId, channelSecret: channelSecret, redirectUri: redirectUri };
+}
+
+// ============================================================
+// === Code.gs.txt
+// ============================================================
+
+/**
+ * Code.gs — エントリポイント (doGet / doPost)
+ *
+ * doPost: JSON API
+ *   Content-Type: application/json
+ *   body: { action: '...', ... }
+ *     signup        { email, password, role, lineDisplayName? }
+ *     login         { email, password }
+ *     logout        { token }
+ *     verify        { token }
+ *     line_auth_url { state }
+ *   返り値: { ok: true, action, data } / { ok: false, action, error }
+ *
+ * doGet:
+ *   ?action=line_callback&code=&state=
+ *     LINE 認可コールバック → JWT 発行 → フロントへリダイレクト
+ *     （ScriptProperties.FRONTEND_REDIRECT_URI のフラグメントに token を付与）
+ *
+ *   それ以外: サービス情報の JSON
+ *
+ * ※ 例外は HTTP 境界で JSON 化する（内部モジュールでは throw のまま）。
+ */
+
+function doPost(e) {
+  var action = '(parse-error)';
+  try {
+    if (!e || !e.postData || !e.postData.contents) throw new Error('POST body が空です');
+    var body = JSON.parse(e.postData.contents);
+    action = body.action;
+    var data;
+    switch (action) {
+      case 'signup':
+        data = signup(body.email, body.password, body.role, body.lineDisplayName);
+        break;
+      case 'login':
+        data = login(body.email, body.password);
+        break;
+      case 'logout':
+        data = logout(body.token);
+        break;
+      case 'verify':
+        data = verifyJwt(body.token);
+        break;
+      case 'line_auth_url':
+        data = { url: lineGetAuthUrl(body.state) };
+        break;
+      default:
+        throw new Error('unknown action: ' + action);
+    }
+    return _json({ ok: true, action: action, data: data });
+  } catch (err) {
+    Logger.log('doPost error (' + action + '): ' + err.message);
+    return _json({ ok: false, action: action, error: err.message });
+  }
+}
+
+function doGet(e) {
+  var p = (e && e.parameter) || {};
+  if (p.action === 'line_callback') {
+    return _handleLineCallback(p.code, p.state);
+  }
+  return _json({
+    ok: true,
+    service: 'sho-eigo-gas',
+    endpoints: ['POST /', 'GET /?action=line_callback']
+  });
+}
+
+// ---------- 内部 ----------
+
+function _handleLineCallback(code, state) {
+  var redirectBase = PropertiesService.getScriptProperties().getProperty('FRONTEND_REDIRECT_URI') || '';
+  try {
+    if (!redirectBase) throw new Error('ScriptProperties に FRONTEND_REDIRECT_URI がありません');
+    var result = lineHandleCallback(code);
+    var sep = redirectBase.indexOf('#') >= 0 ? '&' : '#';
+    var url = redirectBase + sep
+      + 'token=' + encodeURIComponent(result.token)
+      + '&userId=' + encodeURIComponent(result.userId)
+      + '&role=' + encodeURIComponent(result.role)
+      + (state ? '&state=' + encodeURIComponent(state) : '');
+    return HtmlService.createHtmlOutput(
+      '<!doctype html><html><body>'
+      + '<script>location.replace(' + JSON.stringify(url) + ');</script>'
+      + '<p>Redirecting…</p></body></html>'
+    );
+  } catch (err) {
+    Logger.log('line_callback error: ' + err.message);
+    return HtmlService.createHtmlOutput(
+      '<!doctype html><html><body><h1>LINE ログイン失敗</h1><pre>'
+      + _esc(err.message) + '</pre></body></html>'
+    );
+  }
+}
+
+function _json(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function _esc(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+  });
+}

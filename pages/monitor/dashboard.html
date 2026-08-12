@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>モニター ダッシュボード | sho eigo</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<header class="site">
+  <a href="/" class="brand">sho eigo</a>
+  <nav><a href="/monitor/">モニター案内</a></nav>
+</header>
+
+<section class="hero">
+  <h1>モニター ダッシュボード</h1>
+  <p>気づいたこと・改善依頼を、ここからいつでも送れます。</p>
+</section>
+
+<main class="container">
+
+  <div id="auth-warn" class="notice" style="display:none; background:#ffe5e0; border-left-color:#d04b30;">
+    <strong>このページはモニター参加者専用です。</strong><br>
+    LINEから届くリンク経由でアクセスしてください（URLに <code>?uid=...</code> が必要です）。
+  </div>
+
+  <div id="content" style="display:none;">
+
+    <h2>あなたのモニター情報</h2>
+    <div class="card">
+      <div class="kv"><span class="k">参加者ID</span><span class="v" id="uid-view">—</span></div>
+      <div class="kv"><span class="k">ステータス</span><span class="v"><span class="tag accent">モニター中</span></span></div>
+      <div class="kv"><span class="k">期間</span><span class="v">14日間</span></div>
+    </div>
+
+    <h2>改善依頼を送る</h2>
+    <p class="muted">プロダクトの改善・LINE文面・教材の中身など、何でもOKです。匿名性は保ちつつ、必ず本人に届きます。</p>
+
+    <form id="feedback-form" method="POST" action="https://script.google.com/macros/s/YOUR_GAS_DEPLOYMENT_ID/exec?action=improvement">
+      <input type="hidden" name="uid" id="uid-input" value="">
+      <input type="hidden" name="course" value="main">
+
+      <div class="field">
+        <label for="category">カテゴリ</label>
+        <select name="category" id="category">
+          <option value="content">教材の内容</option>
+          <option value="line">LINEの文面・タイミング</option>
+          <option value="page">ページの使い勝手</option>
+          <option value="other">その他</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="content">内容（自由記述）</label>
+        <textarea name="content" id="content-input" required placeholder="例：Day 2 の音声が少し速く感じました。0.9倍速もあると嬉しいです。"></textarea>
+      </div>
+
+      <button type="submit" class="btn accent block">改善依頼を送信する</button>
+      <p class="muted small center" style="margin-top:10px;">送信後、確認画面に遷移します。</p>
+    </form>
+
+    <h2>シナリオを進める / 確認する</h2>
+    <ul class="list-plain">
+      <li><a href="https://sho-blog.com/all/trial/trial_day1.html">▶ Day 1 を見る</a></li>
+      <li><a href="https://sho-blog.com/all/trial/trial_day2.html">▶ Day 2 を見る</a></li>
+    </ul>
+
+    <h2>困ったとき</h2>
+    <p>LINEのトークで「フィードバック」と送っていただくと、次のメッセージを記録します。短文ならそちらが手早いです。</p>
+
+  </div>
+
+</main>
+
+<footer class="site">
+  © sho eigo
+</footer>
+
+<script>
+  (function() {
+    var p = new URLSearchParams(location.search);
+    var uid = p.get('uid');
+    if (!uid) {
+      document.getElementById('auth-warn').style.display = 'block';
+      return;
+    }
+    document.getElementById('content').style.display = 'block';
+    document.getElementById('uid-view').textContent = uid.slice(0, 8) + '...' + uid.slice(-4);
+    document.getElementById('uid-input').value = uid;
+  })();
+</script>
+
+</body>
+</html>
