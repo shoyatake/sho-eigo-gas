@@ -1,0 +1,20 @@
+{
+  "size": {"width":2500,"height":1686},
+  "selected": true,
+  "name": "sho_eigo_menu_A_lead_v1",
+  "chatBarText": "メニューを開く",
+  "areas": [
+    {"bounds":{"x":0,"y":0,"width":1666,"height":843},
+     "action":{"type":"uri","uri":"https://sho-blog.com/trial/day1.html"}},
+    {"bounds":{"x":1666,"y":0,"width":834,"height":421},
+     "action":{"type":"uri","uri":"https://sho-blog.com/pricing"}},
+    {"bounds":{"x":1666,"y":421,"width":834,"height":422},
+     "action":{"type":"uri","uri":"https://sho-blog.com/eiken-guarantee"}},
+    {"bounds":{"x":0,"y":843,"width":833,"height":843},
+     "action":{"type":"uri","uri":"https://sho-blog.com/courses"}},
+    {"bounds":{"x":833,"y":843,"width":833,"height":843},
+     "action":{"type":"postback","data":"action=faq"}},
+    {"bounds":{"x":1666,"y":843,"width":834,"height":843},
+     "action":{"type":"postback","data":"action=consult"}}
+  ]
+}

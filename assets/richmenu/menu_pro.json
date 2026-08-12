@@ -1,0 +1,18 @@
+{
+  "size": {"width": 2500, "height": 843},
+  "selected": true,
+  "name": "sho eigo PRO 2026",
+  "chatBarText": "メニュー",
+  "areas": [
+    {"bounds":{"x":0,"y":0,"width":1250,"height":843},
+     "action":{"type":"uri","label":"2日間無料体験","uri":"https://sho-blog.com/lp/lp_katakana_trial.html"}},
+    {"bounds":{"x":1250,"y":0,"width":625,"height":421},
+     "action":{"type":"uri","label":"コース一覧","uri":"https://sho-blog.com/courses_v9.html"}},
+    {"bounds":{"x":1875,"y":0,"width":625,"height":421},
+     "action":{"type":"uri","label":"伴走コース","uri":"https://sho-blog.com/next-step.html"}},
+    {"bounds":{"x":1250,"y":421,"width":625,"height":422},
+     "action":{"type":"uri","label":"プラン選択","uri":"https://sho-blog.com/next-step.html"}},
+    {"bounds":{"x":1875,"y":421,"width":625,"height":422},
+     "action":{"type":"message","label":"質問・相談","text":"質問があります"}}
+  ]
+}

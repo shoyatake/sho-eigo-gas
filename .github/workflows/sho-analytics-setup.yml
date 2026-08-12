@@ -1,0 +1,26 @@
+name: Sho Analytics Setup Advisor
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 23 * * 1" # Monday 08:15 JST
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  advisor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: node scripts/ops/sho-analytics-setup.mjs
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.4-mini' }}
+          GSC_SITE_URL: ${{ vars.GSC_SITE_URL || 'https://sho-blog.com/' }}
+          GA4_PROPERTY_ID: ${{ vars.GA4_PROPERTY_ID || '' }}

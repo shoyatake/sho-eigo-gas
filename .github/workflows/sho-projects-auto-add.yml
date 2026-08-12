@@ -1,0 +1,28 @@
+name: Sho Projects Auto Add
+
+on:
+  issues:
+    types: [opened]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Manually add this issue number"
+        required: false
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node scripts/integrations/sho-projects-auto-add.mjs
+        env:
+          GH_PROJECT_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PROJECT_ID: ${{ vars.PROJECT_ID }}
+          ISSUE_NODE_ID: ${{ github.event.issue.node_id }}
+          ISSUE_NUMBER: ${{ inputs.issue_number || github.event.issue.number }}

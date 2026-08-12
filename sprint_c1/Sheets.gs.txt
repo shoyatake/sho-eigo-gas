@@ -1,0 +1,92 @@
+/**
+ * setupSheets
+ *   - 生徒マスター: 必要列が無ければ末尾に追加（既存列・既存データには触らない）
+ *   - Users:        空なら削除、データがあれば警告のみ
+ *   - parent_links: 空なら削除、データがあれば警告のみ
+ *   - SESSIONS:     無ければ新規作成しヘッダーを設定
+ *
+ * SPREADSHEET_ID は ScriptProperties から取得する（コード直書き禁止）。
+ * エラーは握りつぶさず、その場で throw させる（try-catch を使わない）。
+ */
+function setupSheets() {
+  var spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  if (!spreadsheetId) {
+    throw new Error('ScriptProperties に SPREADSHEET_ID が設定されていません');
+  }
+  var ss = SpreadsheetApp.openById(spreadsheetId);
+
+  Logger.log('========== Setup 開始 ==========');
+  Logger.log('Spreadsheet: ' + ss.getName());
+
+  // ---------- Step 2: 生徒マスターの列拡張 ----------
+  var master = ss.getSheetByName('生徒マスター');
+  if (!master) {
+    throw new Error('シート「生徒マスター」が見つかりません');
+  }
+  var dataRows = Math.max(0, master.getLastRow() - 1);
+  Logger.log('生徒マスター: ' + dataRows + '行のデータ');
+
+  var requiredColumns = [
+    'passwordHash',
+    'lineDisplayName',
+    'role',
+    'linkedUserIds',
+    'inviteCode',
+    'lastLoginAt'
+  ];
+  var lastCol = master.getLastColumn();
+  var headers = lastCol > 0
+    ? master.getRange(1, 1, 1, lastCol).getValues()[0].map(function (v) { return String(v); })
+    : [];
+  for (var i = 0; i < requiredColumns.length; i++) {
+    var name = requiredColumns[i];
+    if (headers.indexOf(name) >= 0) {
+      Logger.log('  ⏩ 既存: ' + name);
+    } else {
+      var newCol = master.getLastColumn() + 1;
+      master.getRange(1, newCol).setValue(name);
+      headers.push(name);
+      Logger.log('  ✅ 列追加: ' + name);
+    }
+  }
+
+  // ---------- Step 3: Users シート（空なら削除） ----------
+  var users = ss.getSheetByName('Users');
+  if (users) {
+    if (users.getLastRow() - 1 <= 0) {
+      ss.deleteSheet(users);
+      Logger.log('Users シート: 空だったので削除');
+    } else {
+      Logger.log('⚠️ Users シート: データが存在するため削除をスキップ（' + (users.getLastRow() - 1) + '行）');
+    }
+  } else {
+    Logger.log('Users シート: 存在しない（スキップ）');
+  }
+
+  // ---------- Step 4: parent_links シート（空なら削除） ----------
+  var parentLinks = ss.getSheetByName('parent_links');
+  if (parentLinks) {
+    if (parentLinks.getLastRow() - 1 <= 0) {
+      ss.deleteSheet(parentLinks);
+      Logger.log('parent_links シート: 空だったので削除');
+    } else {
+      Logger.log('⚠️ parent_links シート: データが存在するため削除をスキップ（' + (parentLinks.getLastRow() - 1) + '行）');
+    }
+  } else {
+    Logger.log('parent_links シート: 存在しない（スキップ）');
+  }
+
+  // ---------- Step 5: SESSIONS シート作成 ----------
+  var sessions = ss.getSheetByName('SESSIONS');
+  if (sessions) {
+    Logger.log('SESSIONS シート: 既に存在するためスキップ');
+  } else {
+    sessions = ss.insertSheet('SESSIONS');
+    var sessionHeaders = ['jwtId', 'userId', 'issuedAt', 'expiresAt', 'revoked'];
+    sessions.getRange(1, 1, 1, sessionHeaders.length).setValues([sessionHeaders]);
+    sessions.setFrozenRows(1);
+    Logger.log('SESSIONS シート: 作成完了');
+  }
+
+  Logger.log('========== Setup 完了 ==========');
+}
