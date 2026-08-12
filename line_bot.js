@@ -447,28 +447,13 @@ function checkAndSendScheduled() {
       if (step.sendQuiz)              { Utilities.sleep(500); sendQuizButtons(userId); }
       if (step.sendMonitorMidSurvey)  { Utilities.sleep(500); sendMonitorMidSurvey(userId); }
       if (step.sendMonitorFinalSurvey){ Utilities.sleep(500); sendMonitorFinalSurvey(userId); }
+      if (step.markAiWritingPending)  { addTag(userId, 'ai_writing_pending'); }
+      if (step.sendPlanSelect)        { Utilities.sleep(500); sendPlanSelectButtons(userId); }
+      if (step.sendMonitorConvert)    { Utilities.sleep(500); sendMonitorConvertButton(userId); }
       Utilities.sleep(200);
     } catch(err) {
       logError('checkAndSendScheduled', err, { userId: userId, scenarioId: scenarioId, stepNum: stepNum });
     }
-    if (step.executeDeletion) {
-      executeUserDeletion(userId);
-      updateUserStep(userId, scenarioId, stepNum + 1, now);
-      continue;
-    }
-    const msg = buildMessage(scenarioId, stepNum, userId);
-    if (msg) {
-      sendPushMessage(userId, msg);
-      updateUserStep(userId, scenarioId, stepNum + 1, now);
-    }
-    if (step.sendSurvey)            { Utilities.sleep(500); sendSurveyButtons(userId); }
-    if (step.sendQuiz)              { Utilities.sleep(500); sendQuizButtons(userId); }
-    if (step.sendMonitorMidSurvey)  { Utilities.sleep(500); sendMonitorMidSurvey(userId); }
-    if (step.sendMonitorFinalSurvey){ Utilities.sleep(500); sendMonitorFinalSurvey(userId); }
-    if (step.markAiWritingPending)  { addTag(userId, 'ai_writing_pending'); }
-    if (step.sendPlanSelect)        { Utilities.sleep(500); sendPlanSelectButtons(userId); }
-    if (step.sendMonitorConvert)    { Utilities.sleep(500); sendMonitorConvertButton(userId); }
-    Utilities.sleep(200);
   }
   checkEngagement();
   checkDeletionEligibility();
@@ -1807,7 +1792,7 @@ function computeMetricsToday() {
         if (fn === 'sendPushMessage' || fn === 'replyMessage') hourApiErrors++;
       }
     }
-    var hourlyOps = Math.max(hourApiErrors + (dau > 0 ? Math.ceil(dau / 24) : 1), 1);
+    var hourlyOps = Math.max(dau > 0 ? Math.ceil(dau / 24) : 1, 1);
     api_error_rate_pct = Math.round(hourApiErrors * 100 / hourlyOps);
   }
   return {
@@ -2389,7 +2374,7 @@ function _seedTestData() {
     ['Useed_002','テスト 個人B','SC-MAIN', 2, new Date(now.getTime() - 2*86400000), new Date(now.getTime() - 4*86400000), ['src_line','read_s0','read_s1']],
     ['Useed_003','テスト 個人C','SC-MAIN', 3, new Date(now.getTime() - 1*86400000), new Date(now.getTime() - 6*86400000), ['src_line','read_s0','read_s1','read_s2']],
     ['Useed_004','テスト 保護者D','SC-PARENT', 1, new Date(now.getTime() - 1*86400000), new Date(now.getTime() - 5*86400000), ['src_line','attr_parent','read_p1','purchased','purchased_plan_family']],
-    ['Useed_005','テスト 法人E','SC-ADULT', 1, new Date(now.getTime() - 3*86400000), new Date(now.getTime() - 8*86400000), ['src_line','attr_adult','purchased','purchased_plan_l3']],
+    ['Useed_005','テスト 法人E','SC-ADULT', 1, new Date(now.getTime() - 3*86400000), new Date(now.getTime() - 8*86400000), ['src_line','attr_adult','purchased','purchased_plan_personal']],
   ];
   seedUsers.forEach(function(u) {
     usersSheet.appendRow([u[0], u[1], u[2], u[3], u[4], u[5]]);
