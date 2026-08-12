@@ -1,0 +1,62 @@
+name: SEO Article (weekly)
+
+on:
+  schedule:
+    # 毎週金曜 01:00 UTC = JST 金曜 10:00
+    - cron: '0 1 * * 5'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run without writing the article file'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: seo-article
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps
+        run: |
+          npm init -y >/dev/null
+          npm install --no-save --no-fund --silent \
+            googleapis@^144 \
+            @anthropic-ai/sdk@^0.40
+
+      - name: Generate article
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_SA_JSON:    ${{ secrets.GOOGLE_SA_JSON }}
+          GOOGLE_SS_ID:      ${{ secrets.GOOGLE_SS_ID }}
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            node scripts/seo_article.mjs --dry-run
+          else
+            node scripts/seo_article.mjs
+          fi
+
+      - name: Commit and push
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          if [ -z "$(git status --porcelain pages/articles)" ]; then
+            echo "No new article to commit"
+            exit 0
+          fi
+          git config user.name 'sho-eigo-bot'
+          git config user.email '[email protected]'
+          git add pages/articles
+          git commit -m "Weekly SEO article ($(date -u +%Y-%m-%d))"
+          git push origin HEAD:main

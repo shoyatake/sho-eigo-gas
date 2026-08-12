@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>sho eigo Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<style>
+  body{font-family:"Hiragino Sans","Noto Sans JP",sans-serif;background:#f4f4f0;color:#222;margin:0;padding:24px;line-height:1.6;}
+  .card{background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 2px 6px rgba(0,0,0,0.06);}
+  h1{font-size:18px;margin:0 0 16px;}
+  h2{font-size:14px;color:#666;margin:0 0 8px;}
+  .metric{font-size:28px;font-weight:bold;color:#1a2d45;}
+  .row{display:flex;gap:12px;flex-wrap:wrap;}
+  .row .card{flex:1;min-width:140px;}
+  .muted{color:#888;font-size:12px;}
+  .err{color:#d04b30;}
+  input[type=password]{padding:8px;border:1px solid #ccc;border-radius:6px;width:240px;}
+  button{padding:8px 16px;background:#1a2d45;color:#fff;border:0;border-radius:6px;cursor:pointer;}
+</style>
+</head>
+<body>
+<h1>sho eigo Admin</h1>
+<p class="muted">トークンを入力してダッシュボードを表示します。</p>
+
+<div class="card" id="login-card">
+  <form id="login-form">
+    <input type="password" id="token" placeholder="ADMIN_TOKEN を入力" autocomplete="current-password">
+    <button type="submit">表示</button>
+  </form>
+  <p class="muted small">トークンは sessionStorage に保存され、タブを閉じると消えます。</p>
+  <p class="err" id="err" hidden></p>
+</div>
+
+<div id="dashboard" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+(function() {
+  var GAS_DEPLOY_ID = 'YOUR_GAS_DEPLOYMENT_ID';
+  var GAS_BASE = 'https://script.google.com/macros/s/' + GAS_DEPLOY_ID + '/exec';
+
+  var loginCard = document.getElementById('login-card');
+  var dashboard = document.getElementById('dashboard');
+  var errEl = document.getElementById('err');
+
+  function showError(msg) {
+    errEl.textContent = msg;
+    errEl.hidden = false;
+  }
+
+  function render(d) {
+    var h = '';
+    h += '<div class="row">';
+    h += '<div class="card"><h2>本日 DAU</h2><div class="metric">' + (d.dau || 0) + '</div></div>';
+    h += '<div class="card"><h2>トライアル完走率</h2><div class="metric">' + (d.trial_completion_pct || 0) + '%</div></div>';
+    h += '<div class="card"><h2>Pro 転換率</h2><div class="metric">' + (d.conversion_pct || 0) + '%</div></div>';
+    h += '<div class="card"><h2>API エラー率/h</h2><div class="metric">' + (d.api_error_rate_pct || 0) + '%</div></div>';
+    h += '</div>';
+    h += '<div class="card"><h2>過去 14 日の DAU</h2><canvas id="chartDau" height="120"></canvas></div>';
+    h += '<div class="card"><h2>過去 14 日の Pro 転換</h2><canvas id="chartConv" height="120"></canvas></div>';
+    h += '<div class="card"><h2>モニター枠</h2><div class="metric">' + (d.monitor_active || 0) + ' / ' + (d.monitor_capacity || 10) + '</div></div>';
+    h += '<p class="muted"><a href="#" id="logout">ログアウト</a> | <a href="#" id="reload">再読み込み</a></p>';
+    dashboard.innerHTML = h;
+    dashboard.hidden = false;
+    loginCard.hidden = true;
+    new Chart(document.getElementById('chartDau'), { type: 'line', data: { labels: d.history_dates || [], datasets: [{ label: 'DAU', data: d.history_dau || [], borderColor: '#1a2d45', fill: false }] } });
+    new Chart(document.getElementById('chartConv'), { type: 'bar', data: { labels: d.history_dates || [], datasets: [{ label: 'Pro 転換', data: d.history_conv || [], backgroundColor: '#d04b30' }] } });
+    document.getElementById('logout').onclick = function(ev) { ev.preventDefault(); sessionStorage.removeItem('admin_token'); location.reload(); };
+    document.getElementById('reload').onclick = function(ev) { ev.preventDefault(); fetchAndRender(sessionStorage.getItem('admin_token')); };
+  }
+
+  function fetchAndRender(token) {
+    fetch(GAS_BASE + '?action=admin&format=json&token=' + encodeURIComponent(token))
+      .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(render)
+      .catch(function(e) { showError('取得失敗: ' + e.message + ' (トークンが違うか、ネットワークエラー)'); });
+  }
+
+  document.getElementById('login-form').addEventListener('submit', function(ev) {
+    ev.preventDefault();
+    var token = document.getElementById('token').value.trim();
+    if (!token) return;
+    sessionStorage.setItem('admin_token', token);
+    errEl.hidden = true;
+    fetchAndRender(token);
+  });
+
+  // セッションに保存された token があれば自動ログイン
+  var saved = sessionStorage.getItem('admin_token');
+  if (saved) fetchAndRender(saved);
+})();
+</script>
+</body>
+</html>

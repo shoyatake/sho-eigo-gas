@@ -1,0 +1,50 @@
+name: SNS Proposal (weekly)
+
+on:
+  schedule:
+    # 毎週月曜 01:00 UTC = JST 月曜 10:00
+    - cron: '0 1 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run without writing to Notion / LINE'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: sns-proposal
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps (script-only)
+        run: |
+          npm init -y >/dev/null
+          npm install --no-save --no-fund --silent \
+            googleapis@^144 \
+            @anthropic-ai/sdk@^0.40
+
+      - name: Run sns_proposal
+        env:
+          ANTHROPIC_API_KEY:        ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_SA_JSON:           ${{ secrets.GOOGLE_SA_JSON }}
+          GOOGLE_SS_ID:             ${{ secrets.GOOGLE_SS_ID }}
+          NOTION_TOKEN:             ${{ secrets.NOTION_TOKEN }}
+          NOTION_DB_ID:             ${{ secrets.NOTION_DB_ID }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          OWNER_LINE_USER_ID:       ${{ secrets.OWNER_LINE_USER_ID }}
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            node scripts/sns_proposal.mjs --dry-run
+          else
+            node scripts/sns_proposal.mjs
+          fi

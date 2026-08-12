@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pro プラン | sho eigo</title>
+<meta name="description" content="sho eigo Pro プランの 3 段。Stripe で月額決済、いつでも解約可能。">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<header class="site">
+  <a href="/" class="brand">sho eigo</a>
+  <nav>
+    <a href="/">ホーム</a>
+    <a href="/lp/">体験</a>
+    <a href="/products/">コース</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <h1>Pro プラン</h1>
+  <p>音と AI 添削で続けられる英語学習。月額・いつでも解約可能。</p>
+</section>
+
+<main class="container">
+
+  <div class="notice" id="line-only-notice" hidden>
+    LINE から開かれた場合は、Bot のメッセージから直接決済画面に進めます。<br>
+    LINE 公式アカウントに「Pro」と送ると専用リンクが届きます。
+  </div>
+
+  <h2>3 プラン比較</h2>
+
+  <div class="product-grid">
+
+    <div class="card" data-plan="personal">
+      <span class="tag accent">人気</span>
+      <h3>個人 Pro</h3>
+      <p class="muted small">対象：仕事で英語を使う社会人 / 自分の英語を伸ばしたい方</p>
+      <ul class="small">
+        <li>毎日の LINE 配信</li>
+        <li>週1 音トレーニング教材</li>
+        <li>AI 添削（英作文 1 行 / 月 20 回）</li>
+      </ul>
+      <div class="kv"><span class="k">料金</span><span class="v">¥3,980 / 月</span></div>
+      <div style="margin-top:14px;"><a id="cta-personal" class="btn block" href="#">Pro に進む</a></div>
+    </div>
+
+    <div class="card" data-plan="family">
+      <span class="tag">保護者</span>
+      <h3>保護者プラン</h3>
+      <p class="muted small">対象：小学生〜中学生のお子さんを持つ保護者</p>
+      <p style="font-weight:600;">音声学習は、思い出になる。</p>
+      <ul class="small">
+        <li>個人 Pro の全機能</li>
+        <li>毎週日曜の保護者レポート（成長と気づき）</li>
+        <li>AI 添削（英作文 1 行 / 月 40 回）</li>
+        <li>音声学習ログ保管 / 思い出アーカイブ</li>
+      </ul>
+      <div class="kv"><span class="k">料金</span><span class="v">¥6,980 / 月</span></div>
+      <div style="margin-top:14px;"><a id="cta-family" class="btn block" href="#">保護者プランに進む</a></div>
+    </div>
+
+    <div class="card" data-plan="corp">
+      <h3>法人 Pro</h3>
+      <p class="muted small">対象：社員研修・チーム導入 (10 シート〜)</p>
+      <ul class="small">
+        <li>個人 Pro の全機能 × シート数</li>
+        <li>管理ダッシュボード</li>
+        <li>月次サマリ Slack 通知</li>
+      </ul>
+      <div class="kv"><span class="k">料金</span><span class="v">¥9,800 / 月 / シート</span></div>
+      <div style="margin-top:14px;"><a id="cta-corp" class="btn block" href="#">問い合わせる</a></div>
+    </div>
+
+  </div>
+
+  <div class="cta-area" style="margin-top:48px;">
+    <p class="muted small">クレジットカード決済は Stripe を利用します。<br>解約はいつでも、ユーザーポータルから 1 クリックで可能です。</p>
+    <p class="muted small">迷ったらまず体験から → <a href="/lp/">2日間 無料体験</a></p>
+  </div>
+
+</main>
+
+<footer class="site">
+  © sho eigo
+  <div style="margin-top:6px;">
+    <a href="/">ホーム</a>
+    <a href="/products/">コース</a>
+    <a href="/payment/">Pro</a>
+    <a href="/lp/">体験</a>
+  </div>
+</footer>
+
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script>
+(function() {
+  // GAS_DEPLOYMENT_ID と LIFF_ID は deploy.yml の placeholder substitution で差し込まれる
+  var GAS_DEPLOY_ID = 'YOUR_GAS_DEPLOYMENT_ID';
+  var LIFF_ID       = 'YOUR_LIFF_ID';  // 未設定なら空文字 (URL の uid だけで動作)
+  var GAS_BASE = 'https://script.google.com/macros/s/' + GAS_DEPLOY_ID + '/exec';
+
+  var params = new URLSearchParams(location.search);
+  var plan = params.get('plan');
+  var uid  = params.get('uid') || '';
+
+  // LIFF が利用可能でかつ URL に uid が無ければ LIFF で取得
+  function bootstrap() {
+    if (uid) {
+      hookCtas();
+      return;
+    }
+    if (LIFF_ID && LIFF_ID !== 'YOUR_LIFF_ID' && typeof liff !== 'undefined') {
+      liff.init({ liffId: LIFF_ID }).then(function() {
+        if (liff.isLoggedIn() && liff.isInClient && liff.isInClient()) {
+          var profile = liff.getDecodedIDToken && liff.getDecodedIDToken();
+          if (profile && profile.sub) {
+            uid = profile.sub;
+            hookCtas();
+            return;
+          }
+          liff.getProfile().then(function(p) {
+            uid = p.userId;
+            hookCtas();
+          }).catch(function() { hookCtas(); });
+        } else {
+          hookCtas();
+        }
+      }).catch(function(){ hookCtas(); });
+    } else {
+      hookCtas();
+    }
+  }
+
+  function showLineNotice() {
+    var notice = document.getElementById('line-only-notice');
+    if (notice) notice.hidden = false;
+  }
+
+  function buildCheckoutUrl(p) {
+    return GAS_BASE
+      + '?action=checkout'
+      + '&plan=' + encodeURIComponent(p)
+      + (uid ? '&uid=' + encodeURIComponent(uid) : '');
+  }
+
+  function buildLineDeepLink(p) {
+    var label = ({personal:'個人Pro', family:'保護者プラン', corp:'法人Pro'})[p] || 'Pro';
+    return 'https://line.me/R/oaMessage/@YOUR_LINE_ID/?' + encodeURIComponent(label);
+  }
+
+  function hookCtas() {
+    if (!uid) showLineNotice();
+    ['personal', 'family', 'corp'].forEach(function(p) {
+      var el = document.getElementById('cta-' + p);
+      if (!el) return;
+      if (p === 'corp') {
+        el.href = 'https://line.me/R/oaMessage/@YOUR_LINE_ID/?法人Pro問い合わせ';
+        el.textContent = 'LINE で問い合わせる';
+      } else if (uid) {
+        el.href = buildCheckoutUrl(p);
+        el.textContent = (p === 'family') ? '保護者プランに進む (Stripe)' : 'Pro に進む (Stripe)';
+      } else {
+        el.href = buildLineDeepLink(p);
+        el.textContent = 'LINE で続ける';
+      }
+    });
+    if (plan && document.querySelector('[data-plan="' + plan + '"]')) {
+      var card = document.querySelector('[data-plan="' + plan + '"]');
+      card.style.outline = '3px solid #1a2d45';
+      card.scrollIntoView({behavior: 'smooth', block: 'center'});
+    }
+  }
+
+  bootstrap();
+})();
+</script>
+
+</body>
+</html>

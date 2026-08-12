@@ -68,6 +68,7 @@ jobs:
         env:
           LINE_ID: ${{ secrets.LINE_ID }}
           GAS_DEPLOYMENT_ID: ${{ secrets.GAS_DEPLOYMENT_ID }}
+          LIFF_ID: ${{ secrets.LIFF_ID }}
         run: |
           test -n "$LINE_ID" || { echo "::error::LINE_ID secret is missing"; exit 1; }
           test -n "$GAS_DEPLOYMENT_ID" || { echo "::error::GAS_DEPLOYMENT_ID secret is missing"; exit 1; }
@@ -76,7 +77,8 @@ jobs:
           find build -type f \( -name '*.html' -o -name '*.css' \) -print0 \
             | xargs -0 sed -i \
                 -e "s|@YOUR_LINE_ID|${LINE_ID}|g" \
-                -e "s|YOUR_GAS_DEPLOYMENT_ID|${GAS_DEPLOYMENT_ID}|g"
+                -e "s|YOUR_GAS_DEPLOYMENT_ID|${GAS_DEPLOYMENT_ID}|g" \
+                -e "s|YOUR_LIFF_ID|${LIFF_ID:-YOUR_LIFF_ID}|g"
           for f in index.html products/index.html lp/index.html next-step.html \
                    payment/success.html payment/cancel.html trial/parent_lp.html \
                    monitor/index.html monitor/dashboard.html monitor/parent/dashboard.html \
@@ -113,8 +115,15 @@ jobs:
                    https://sho-blog.com/payment/cancel.html \
                    https://sho-blog.com/trial/parent_lp.html \
                    https://sho-blog.com/monitor/ \
+                   https://sho-blog.com/monitor/parent/ \
                    https://sho-blog.com/monitor/dashboard.html \
                    https://sho-blog.com/monitor/parent/dashboard.html \
+                   https://sho-blog.com/payment/ \
+                   https://sho-blog.com/payment/success.html \
+                   https://sho-blog.com/payment/cancel.html \
+                   https://sho-blog.com/admin/ \
+                   https://sho-blog.com/child/dashboard.html \
+                   https://sho-blog.com/articles/ \
                    https://sho-blog.com/assets/style.css ; do
             printf "%s -> " "$u"
             curl -fsSIL "$u" | head -1
