@@ -7,6 +7,7 @@ const CONFIG = {
   LINE_TOKEN: 'YOUR_LINE_CHANNEL_ACCESS_TOKEN',
   SS_ID: 'YOUR_SPREADSHEET_ID',
   GAS_URL: 'YOUR_GAS_DEPLOY_URL',
+  ADMIN_EMAIL: '',
 };
 
 const MONITOR_CONFIG = {
@@ -40,7 +41,7 @@ function doPost(e) {
       if (event.type === 'postback') handlePostback(event);
     });
   } catch(err) {
-    Logger.log('doPost Error: ' + err.toString());
+    logError('doPost', err);
   }
   return ContentService
     .createTextOutput(JSON.stringify({status:'ok'}))
@@ -284,7 +285,7 @@ function handleMessage(event) {
 
   // UI/UX カスタマイズ相談 (保護者プラン契約者向け、人手で受ける)
   if (text.indexOf('カスタマイズ') !== -1) {
-    var planTag = hasTag(userId, 'purchased_plan_parent') ? '保護者プラン契約者' :
+    var planTag = hasTag(userId, 'purchased_plan_family') ? '保護者プラン契約者' :
                   hasTag(userId, 'purchased') ? 'L プラン契約者' : '体験中';
     addTag(userId, 'customize_request');
     replyMessage(event.replyToken,
@@ -422,14 +423,33 @@ function checkAndSendScheduled() {
     const scenarioId = row[2];
     const stepNum    = parseInt(row[3]) || 0;
     const stepSentAt = row[4] ? new Date(row[4]) : null;
-    if (!userId || !scenarioId) continue;
-    if (hasTag(userId, 'deleted')) continue;
-    const step = getScenarioStep(scenarioId, stepNum);
-    if (!step) continue;
-    if (!isSendDue(stepSentAt, step.delayDays, step.sendHour, now)) continue;
-    if (step.skipIfTag && hasTag(userId, step.skipIfTag)) {
-      updateUserStep(userId, scenarioId, stepNum + 1, now);
-      continue;
+    try {
+      if (!userId || !scenarioId) continue;
+      if (hasTag(userId, 'deleted')) continue;
+      const step = getScenarioStep(scenarioId, stepNum);
+      if (!step) continue;
+      if (!isSendDue(stepSentAt, step.delayDays, step.sendHour, now)) continue;
+      if (step.skipIfTag && hasTag(userId, step.skipIfTag)) {
+        updateUserStep(userId, scenarioId, stepNum + 1, now);
+        continue;
+      }
+      if (step.executeDeletion) {
+        executeUserDeletion(userId);
+        updateUserStep(userId, scenarioId, stepNum + 1, now);
+        continue;
+      }
+      const msg = buildMessage(scenarioId, stepNum, userId);
+      if (msg) {
+        sendPushMessage(userId, msg);
+        updateUserStep(userId, scenarioId, stepNum + 1, now);
+      }
+      if (step.sendSurvey)            { Utilities.sleep(500); sendSurveyButtons(userId); }
+      if (step.sendQuiz)              { Utilities.sleep(500); sendQuizButtons(userId); }
+      if (step.sendMonitorMidSurvey)  { Utilities.sleep(500); sendMonitorMidSurvey(userId); }
+      if (step.sendMonitorFinalSurvey){ Utilities.sleep(500); sendMonitorFinalSurvey(userId); }
+      Utilities.sleep(200);
+    } catch(err) {
+      logError('checkAndSendScheduled', err, { userId: userId, scenarioId: scenarioId, stepNum: stepNum });
     }
     if (step.executeDeletion) {
       executeUserDeletion(userId);
@@ -588,10 +608,18 @@ const SCENARIOS_DATA = {
       message: '体験から 5 日たちました。\nお子さんと一緒に聴いた録音は、まだ覚えていますか？\n\n毎日続けると、毎月こうなります。\n・30 日後 → アルバム 1 冊\n・6 ヶ月後 → アルバム 6 冊\n・1 年後 → 子どもの声の歴史\n\n▼ 保護者プランで続ける\nhttps://sho-blog.com/next-step.html?from=parent\n\n▼ L1〜L3 で続ける (レポート・アルバムなし)\nhttps://sho-blog.com/next-step.html\n\n迷ったら、最初は L3 (¥3,980) で始めて、あとから保護者プランに切り替えることもできます。' },
   ],
   'SC-STUDENT': [
-    { stepNum: 0, delayDays: 0, sendHour: 8, trackingTag: 'read_st1',
-      message: '英検のリスニングで\n「知ってるはずの単語が聴こえない」\n\nこれ、単語力の問題じゃないんです。\n\n音の設定がずれているだけ。\n音を直せば、知っている単語が聴こえます。\n\n▼ 体験で確認する\nhttps://sho-blog.com/trial/day1.html' },
-    { stepNum: 1, delayDays: 3, sendHour: 8, trackingTag: 'read_st2',
-      message: '音の土台を作った人の\n半年後・1年後の伸び方は変わります。\n\n遠回りに見えて一番近道です。\n\n▼ 体験で音の基礎を確かめる\nhttps://sho-blog.com/trial/day1.html' },
+    { stepNum: 0, delayDays: 0, sendHour: 8, trackingTag: 'read_st0',
+      message: '英検のリスニングで\n「知ってるはずの単語が聴こえない」\n\nそんな経験はありませんか。\n\n単語帳ではちゃんと覚えたのに\n本番の音声になると\nまるで別の言葉に聞こえる。\n\nこれ、単語力の問題ではありません。\n\n頭の中で覚えている音と\n実際に流れてくる音が\nずれているだけなんです。\n\nまずは「ずれ」がどんなものか\n体験で確かめてみてください。\n\n▼ Day 1 体験はこちら\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+    { stepNum: 1, delayDays: 2, sendHour: 8, trackingTag: 'read_st1',
+      message: 'おはようございます。\n\n昨日の話の続きです。\n\nなぜ知っている単語が\n聴こえないのか。\n\n理由は大きく2つあります。\n\n1つめは Linking。\n単語と単語がつながって\n別の音に変わる現象です。\n\n「turn it off」が\n「ターニラフ」になる。\n\n2つめは Flap T。\n「water」が「ワラ」になり\n「better」が「ベラ」になる。\n\nこれを知らないまま\n何百時間リスニングしても\n聴こえるようにはなりません。\n\n逆に音のルールを知れば\n世界が変わります。\n\n▼ Day 2 で続きを体験\nhttps://sho-blog.com/trial/day2.html' },
+    { stepNum: 2, delayDays: 3, sendHour: 8, trackingTag: 'read_st2',
+      message: '中高生からよく聞かれる質問です。\n\n「単語をもっと覚えれば\nリスニングできますか？」\n\n答えは半分イエス、半分ノーです。\n\n単語力は読解の土台になります。\nでも、リスニングは別の力。\n\n単語を1万語覚えても\n「音のルール」を知らなければ\n聴こえないままです。\n\n単語力と音力は\n別のスキルとして\n別々に育てる必要があります。\n\nそしてうれしいことに\n音力は単語より早く育ちます。\n\n▼ 音力の入口はこちら\nhttps://sho-blog.com/all/trial/trial_day1.html' },
+    { stepNum: 3, delayDays: 5, sendHour: 8, trackingTag: 'read_st3',
+      message: '音のトレーニングを\n半年〜1年続けると\nどうなるか。\n\n実際に変化を経験した人は\nこんなふうに話します。\n\n・洋楽の歌詞が\n　急に聞き取れるようになる\n\n・英検のリスニングで\n　1回で意味が取れる\n\n・映画やドラマを字幕なしで\n　追えるようになる\n\nこれは特別な才能ではなく\n音の仕組みを知って\n練習を積み重ねた結果です。\n\n中高生のうちに\nこの感覚を作っておくと\n大学入試でも社会に出てからも\nずっと使えます。\n\n▼ 次のステップはこちら\nhttps://sho-blog.com/all/trial/next_step_day2.html' },
+    { stepNum: 4, delayDays: 7, sendHour: 8, trackingTag: 'read_st4',
+      message: '英検2級・準1級を\n目指している人へ。\n\nこのレベルになると\nリスニングが合否を分けます。\n\n語彙や文法は\n参考書で対策できますが\nリスニングは「音の処理速度」が\n問われます。\n\nスクリプトを見れば\n知っている単語ばかりなのに\n音だけだと意味が取れない。\n\nこの状態を抜けるには\n・Linking や Flap T などの音変化\n・弱形（aやofが「ア」「ァヴ」になる）\n・センテンス全体のリズム\n\nこの3つを\n体に入れるしかありません。\n\nsho eigoでは\n中高生向けに段階的に\n進められるカリキュラムを\n用意しています。\n\n▼ 詳しい内容はこちら\nhttps://sho-blog.com/all/trial/next_step_day2.html' },
+    { stepNum: 5, delayDays: 9, sendHour: 8, trackingTag: 'read_st5', skipIfTag: 'purchased',
+      message: 'ここまで読んでくださって\nありがとうございます。\n\n音の話、いかがでしたか。\n\n「もう少し本格的にやってみたい」\nと思った方へ。\n\nsho eigoの中高生向けプランは\nリスニングの土台作りから\n英検2級・準1級レベルまで\n段階的に進められるよう\n設計されています。\n\n部活や学校の予習復習で\n時間が限られていても\n1日15分から始められます。\n\n音が変われば\n英語そのものが変わります。\n\n中高生のうちに\nこの感覚を手に入れておくと\nこの先ずっと役に立ちます。\n\n気になった方は\n下のリンクから\n詳細を見てみてください。\n\n▼ 次のステップ\nhttps://sho-blog.com/all/trial/next_step_day2.html' },
   ],
   'SC-ADULT': [
     { stepNum: 0, delayDays: 0, sendHour: 8, trackingTag: 'read_a1',
@@ -737,61 +765,135 @@ function logSurvey(userId, answer, scenarioMoved) {
   sheet.appendRow([userId, answer, scenarioMoved, new Date()]);
 }
 
+function logError(funcName, err, context) {
+  var errStr = String(err) + (err && err.stack ? '\n' + err.stack : '');
+  var contextStr = '';
+  if (context) {
+    try { contextStr = JSON.stringify(context); } catch(e) { contextStr = String(context); }
+  }
+  try {
+    var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+    var sheet = ss.getSheetByName('ERROR_LOG');
+    if (!sheet) {
+      sheet = ss.insertSheet('ERROR_LOG');
+      sheet.appendRow(['timestamp','function','error','context']);
+      sheet.getRange(1,1,1,4).setBackground('#1a2d45').setFontColor('#fff').setFontWeight('bold');
+    }
+    sheet.appendRow([new Date(), funcName, errStr, contextStr]);
+  } catch(sheetErr) {
+    Logger.log('logError sheet failure: ' + sheetErr + ' | original: ' + funcName + ' ' + errStr);
+  }
+  try {
+    if (CONFIG.ADMIN_EMAIL) {
+      var props = PropertiesService.getScriptProperties();
+      var lastAt = props.getProperty('last_error_alert_at');
+      var now = new Date();
+      var shouldSend = true;
+      if (lastAt) {
+        var diffMs = now.getTime() - new Date(lastAt).getTime();
+        if (diffMs < 24 * 60 * 60 * 1000) shouldSend = false;
+      }
+      if (shouldSend) {
+        MailApp.sendEmail({
+          to: CONFIG.ADMIN_EMAIL,
+          subject: '[sho-eigo] Error in ' + funcName,
+          body: 'Function: ' + funcName + '\n\nError:\n' + errStr + '\n\nContext:\n' + contextStr
+        });
+        props.setProperty('last_error_alert_at', now.toISOString());
+      }
+    }
+  } catch(mailErr) {
+    Logger.log('logError mail failure: ' + mailErr);
+  }
+}
+
 function sendPushMessage(userId, text) {
   if (!text) return;
-  UrlFetchApp.fetch(LINE_API + '/push', {
-    method: 'post',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
-    payload: JSON.stringify({ to: userId, messages: [{ type: 'text', text: text }] }),
-    muteHttpExceptions: true
-  });
+  try {
+    var res = UrlFetchApp.fetch(LINE_API + '/push', {
+      method: 'post',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+      payload: JSON.stringify({ to: userId, messages: [{ type: 'text', text: text }] }),
+      muteHttpExceptions: true
+    });
+    var code = res.getResponseCode();
+    if (code >= 400) {
+      logError('sendPushMessage', new Error('HTTP ' + code + ': ' + res.getContentText()), { userId: userId });
+    }
+  } catch(err) {
+    logError('sendPushMessage', err, { userId: userId });
+  }
 }
 
 function replyMessage(replyToken, text) {
   if (!text || !replyToken) return;
-  UrlFetchApp.fetch(LINE_API + '/reply', {
-    method: 'post',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
-    payload: JSON.stringify({ replyToken: replyToken, messages: [{ type: 'text', text: text }] }),
-    muteHttpExceptions: true
-  });
+  try {
+    var res = UrlFetchApp.fetch(LINE_API + '/reply', {
+      method: 'post',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+      payload: JSON.stringify({ replyToken: replyToken, messages: [{ type: 'text', text: text }] }),
+      muteHttpExceptions: true
+    });
+    var code = res.getResponseCode();
+    if (code >= 400) {
+      logError('replyMessage', new Error('HTTP ' + code + ': ' + res.getContentText()), { replyToken: replyToken });
+    }
+  } catch(err) {
+    logError('replyMessage', err, { replyToken: replyToken });
+  }
 }
 
 function sendSurveyButtons(userId) {
-  UrlFetchApp.fetch(LINE_API + '/push', {
-    method: 'post',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
-    payload: JSON.stringify({
-      to: userId,
-      messages: [{ type: 'template', altText: 'あなたはどちらですか？', template: {
-        type: 'buttons', text: 'あなたはどちらですか？',
-        actions: [
-          { type: 'postback', label: '👩 子どもの英語を伸ばしたい', data: 'survey_parent' },
-          { type: 'postback', label: '🎓 英検を目指す中学・高校生', data: 'survey_student' },
-          { type: 'postback', label: '💼 自分の英語を使えるようにしたい', data: 'survey_adult' },
-        ]
-      }}]
-    }),
-    muteHttpExceptions: true
-  });
+  try {
+    var res = UrlFetchApp.fetch(LINE_API + '/push', {
+      method: 'post',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+      payload: JSON.stringify({
+        to: userId,
+        messages: [{ type: 'template', altText: 'あなたはどちらですか？', template: {
+          type: 'buttons', text: 'あなたはどちらですか？',
+          actions: [
+            { type: 'postback', label: '👩 子どもの英語を伸ばしたい', data: 'survey_parent' },
+            { type: 'postback', label: '🎓 英検を目指す中学・高校生', data: 'survey_student' },
+            { type: 'postback', label: '💼 自分の英語を使えるようにしたい', data: 'survey_adult' },
+          ]
+        }}]
+      }),
+      muteHttpExceptions: true
+    });
+    var code = res.getResponseCode();
+    if (code >= 400) {
+      logError('sendSurveyButtons', new Error('HTTP ' + code + ': ' + res.getContentText()), { userId: userId });
+    }
+  } catch(err) {
+    logError('sendSurveyButtons', err, { userId: userId });
+  }
 }
 
 function sendQuizButtons(userId) {
-  UrlFetchApp.fetch(LINE_API + '/push', {
-    method: 'post',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
-    payload: JSON.stringify({
-      to: userId,
-      messages: [{ type: 'template', altText: '「better」の発音クイズ', template: {
-        type: 'confirm', text: '「better」の本物の発音はどちら？',
-        actions: [
-          { type: 'postback', label: 'A：ベター', data: 'quiz_A' },
-          { type: 'postback', label: 'B：ベラ',   data: 'quiz_B' },
-        ]
-      }}]
-    }),
-    muteHttpExceptions: true
-  });
+  try {
+    var res = UrlFetchApp.fetch(LINE_API + '/push', {
+      method: 'post',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+      payload: JSON.stringify({
+        to: userId,
+        messages: [{ type: 'template', altText: '「better」の発音クイズ', template: {
+          type: 'confirm', text: '「better」の本物の発音はどちら？',
+          actions: [
+            { type: 'postback', label: 'A：ベター', data: 'quiz_A' },
+            { type: 'postback', label: 'B：ベラ',   data: 'quiz_B' },
+          ]
+        }}]
+      }),
+      muteHttpExceptions: true
+    });
+    var code = res.getResponseCode();
+    if (code >= 400) {
+      logError('sendQuizButtons', new Error('HTTP ' + code + ': ' + res.getContentText()), { userId: userId });
+    }
+  } catch(err) {
+    logError('sendQuizButtons', err, { userId: userId });
+  }
 }
 
 function getLineProfile(userId) {
@@ -799,8 +901,16 @@ function getLineProfile(userId) {
     var res = UrlFetchApp.fetch('https://api.line.me/v2/bot/profile/' + userId, {
       headers: { 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN }, muteHttpExceptions: true
     });
+    var code = res.getResponseCode();
+    if (code >= 400) {
+      logError('getLineProfile', new Error('HTTP ' + code + ': ' + res.getContentText()), { userId: userId });
+      return null;
+    }
     return JSON.parse(res.getContentText());
-  } catch(e) { return null; }
+  } catch(err) {
+    logError('getLineProfile', err, { userId: userId });
+    return null;
+  }
 }
 
 function sendStepNow(userId, scenarioId, stepNum) {
@@ -837,6 +947,7 @@ function setupSheets() {
     'TAGS':         ['userId','tag','addedAt'],
     'CLICK_LOG':    ['userId','tag','url','clickedAt'],
     'SURVEY_LOG':   ['userId','answer','scenarioMoved','answeredAt'],
+    'ERROR_LOG':    ['timestamp','function','error','context'],
     'MONITORS':     ['userId','displayName','joinedAt','expectedEndAt','status','completedAt'],
     'FEEDBACK_LOG': ['userId','type','content','receivedAt'],
   };
@@ -1118,10 +1229,9 @@ function getMonitorReport() {
 
 
 const PRO_PLANS = {
-  l1:     { price_jpy: 2980, ai_writing_quota: 0,  label: 'L1 Foundation',     stripe_price_id_prop: 'STRIPE_PRICE_L1' },
-  l2:     { price_jpy: 3480, ai_writing_quota: 0,  label: 'L2 Intermediate',   stripe_price_id_prop: 'STRIPE_PRICE_L2' },
-  l3:     { price_jpy: 3980, ai_writing_quota: 20, label: 'L3 Advanced',       stripe_price_id_prop: 'STRIPE_PRICE_L3' },
-  parent: { price_jpy: 4980, ai_writing_quota: 40, label: '保護者プラン',       stripe_price_id_prop: 'STRIPE_PRICE_PARENT' }
+  personal: { price_jpy: 3980, ai_writing_quota: 20, label: '個人 Pro',    stripe_price_id_prop: 'STRIPE_PRICE_PERSONAL' },
+  family:   { price_jpy: 6980, ai_writing_quota: 40, label: '保護者プラン', stripe_price_id_prop: 'STRIPE_PRICE_FAMILY'   },
+  corp:     { price_jpy: 9800, ai_writing_quota: 0,  label: '法人 Pro',    stripe_price_id_prop: 'STRIPE_PRICE_CORP'     }
 };
 
 function getProp(name) {
@@ -1262,18 +1372,17 @@ function handleStripeWebhook(rawBody) {
       if (verifiedSub && verifiedSub.metadata && verifiedSub.metadata.lineUserId) {
         var uid = verifiedSub.metadata.lineUserId;
         removeTag(uid, 'purchased');
-        ['l1','l2','l3','parent'].forEach(function(p){ removeTag(uid, 'purchased_plan_' + p); });
+        ['personal','family','corp'].forEach(function(p){ removeTag(uid, 'purchased_plan_' + p); });
       }
     }
   } else if (event.type === 'charge.refunded' || event.type === 'invoice.payment_failed') {
-        notifyAlert('[Pro] 解約 uid=' + uid.substr(0, 10) + '...', 'slack');
     var obj = event.data && event.data.object;
     var customerId = obj && obj.customer;
     if (customerId) {
       var uid2 = findLineUidByStripeCustomer(customerId);
       if (uid2) {
         removeTag(uid2, 'purchased');
-        ['l1','l2','l3','parent'].forEach(function(p){ removeTag(uid2, 'purchased_plan_' + p); });
+        ['personal','family','corp'].forEach(function(p){ removeTag(uid2, 'purchased_plan_' + p); });
         notifyAlert('[Pro] ' + event.type + ' → 解約処理 uid=' + uid2.substr(0, 10) + '...', 'all');
       }
     }
@@ -1373,7 +1482,7 @@ function createMonitorConvertCheckoutSession(userId) {
   if (!userId) return { error: 'missing_uid' };
   var stripeKey = getProp('STRIPE_SECRET_KEY');
   if (!stripeKey) return { error: 'stripe_not_configured' };
-  var priceId = getProp('STRIPE_PRICE_PARENT');
+  var priceId = getProp('STRIPE_PRICE_FAMILY');
   var couponId = getProp('STRIPE_COUPON_MONITOR_FIRST1980');
   if (!priceId || !couponId) return { error: 'price_or_coupon_missing' };
 
@@ -1386,10 +1495,10 @@ function createMonitorConvertCheckoutSession(userId) {
     'line_items[0][quantity]': 1,
     'discounts[0][coupon]': couponId,
     'metadata[lineUserId]': userId,
-    'metadata[plan]': 'parent',
+    'metadata[plan]': 'family',
     'metadata[source]': 'monitor_convert',
     'subscription_data[metadata][lineUserId]': userId,
-    'subscription_data[metadata][plan]': 'parent',
+    'subscription_data[metadata][plan]': 'family',
     'subscription_data[metadata][source]': 'monitor_convert'
   };
   var formData = Object.keys(payload).map(function(k){
@@ -1420,9 +1529,9 @@ function sendPlanSelectButtons(userId) {
       messages: [{ type: 'template', altText: 'プランを選ぶ', template: {
         type: 'buttons', text: 'どのプランで進めますか？',
         actions: [
-          { type: 'postback', label: 'L3 Advanced 3,980円/月',  data: 'plan_l3'     },
-          { type: 'postback', label: '保護者プラン 4,980円/月', data: 'plan_parent' },
-          { type: 'uri',      label: 'プラン詳細を見る',         uri: 'https://sho-blog.com/next-step.html' }
+          { type: 'postback', label: '個人 Pro 3,980円/月',    data: 'plan_personal' },
+          { type: 'postback', label: '保護者プラン 6,980円/月', data: 'plan_family'   },
+          { type: 'uri',      label: 'プラン詳細を見る',          uri: 'https://sho-blog.com/payment/' }
         ]
       }}]
     }),
@@ -1444,7 +1553,7 @@ function handlePlanSelected(event, plan) {
     Logger.log('handlePlanSelected error: ' + JSON.stringify(result));
     return;
   }
-  var prefix = plan === 'parent' ?
+  var prefix = plan === 'family' ?
     '保護者プラン: 音声学習は、思い出になる。\n週次レポート + 月初アルバム付き。\n\n' : '';
   replyMessage(event.replyToken, prefix + '下記から決済を完了してください。\n（解約はいつでもお客様ポータルから可能）\n\n' + result.url);
 }
@@ -1483,12 +1592,12 @@ function callClaudeApi(prompt, opts) {
 // AI 添削
 // ----------------------------------------
 function checkRateLimit(key, maxCalls, windowSec) {
-  var props = PropertiesService.getScriptProperties();
+  var cache = CacheService.getScriptCache();
   var now = Math.floor(Date.now() / 1000);
   var windowKey = 'rate_' + key + '_' + Math.floor(now / windowSec);
-  var cur = parseInt(props.getProperty(windowKey) || '0');
+  var cur = parseInt(cache.get(windowKey) || '0');
   if (cur >= maxCalls) return false;
-  props.setProperty(windowKey, String(cur + 1));
+  cache.put(windowKey, String(cur + 1), windowSec + 60);
   return true;
 }
 
@@ -1632,7 +1741,7 @@ function buildChildDashboardJson(userId) {
     audio_count: audioCount,
     last_ai_text: lastAiText,
     is_pro: hasTag(userId, 'purchased'),
-    plan_parent: hasTag(userId, 'purchased_plan_parent')
+    plan_family: hasTag(userId, 'purchased_plan_family')
   };
 }
 
@@ -1684,11 +1793,28 @@ function computeMetricsToday() {
       }
     }
   }
+  var api_error_rate_pct = 0;
+  var errorSheet = ss.getSheetByName('ERROR_LOG');
+  if (errorSheet && errorSheet.getLastRow() > 1) {
+    var errors = errorSheet.getDataRange().getValues();
+    var hourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    var hourErrors = 0, hourApiErrors = 0;
+    for (var j = 1; j < errors.length; j++) {
+      var ts = errors[j][0] ? new Date(errors[j][0]) : null;
+      if (ts && ts >= hourAgo) {
+        hourErrors++;
+        var fn = errors[j][1] || '';
+        if (fn === 'sendPushMessage' || fn === 'replyMessage') hourApiErrors++;
+      }
+    }
+    var hourlyOps = Math.max(hourApiErrors + (dau > 0 ? Math.ceil(dau / 24) : 1), 1);
+    api_error_rate_pct = Math.round(hourApiErrors * 100 / hourlyOps);
+  }
   return {
     dau: dau,
     trial_completion_pct: scStarted > 0 ? Math.round(scCompleted * 100 / scStarted) : 0,
     conversion_pct: scCompleted > 0 ? Math.round(purchased * 100 / scCompleted) : 0,
-    api_error_rate_pct: 0
+    api_error_rate_pct: api_error_rate_pct
   };
 }
 
@@ -1783,7 +1909,7 @@ function nudgeTrialDropouts() {
     var nudgeText = '昨日のメッセージ、届いてますか。\nDay 2 のリンク、置いておきます。\n気が向いたタイミングでどうぞ。';
     if (!result.error && result.text) nudgeText = result.text.trim();
 
-    sendPushMessage(userId, nudgeText + '\n\n▼ Day 2 はこちら\nhttps://sho-blog.com/all/trial/trial_day2.html');
+    sendPushMessage(userId, nudgeText + '\n\n▼ Day 2 はこちら\nhttps://sho-blog.com/trial/day2.html');
     addTag(userId, 'nudge_sent_d1');
     sentCount++;
     Utilities.sleep(500);
@@ -1834,7 +1960,7 @@ function weeklyParentReport() {
   var sentCount = 0;
   for (var k = 1; k < users.length; k++) {
     var userId = users[k][0]; if (!userId) continue;
-    if (!hasTag(userId, 'purchased_plan_parent')) continue;
+    if (!hasTag(userId, 'purchased_plan_family')) continue;
     if (hasTag(userId, 'deleted')) continue;
 
     var clicks = clickByUser[userId] || 0;
@@ -1901,7 +2027,7 @@ function handleIncomingAudio(event) {
 
   saveFeedback(userId, 'audio', 'msgId=' + msgId + ' duration=' + duration + 'ms' + (driveUrl ? ' url=' + driveUrl : ''));
   if (!hasTag(userId, 'audio_received')) addTag(userId, 'audio_received');
-  if (hasTag(userId, 'purchased_plan_parent')) {
+  if (hasTag(userId, 'purchased_plan_family')) {
     replyMessage(event.replyToken, '音声を受け取りました。\nそのまま LINE トークに残るので、後から振り返れます。\n\n月初の「思い出アルバム」にもこの音声が反映されます。');
   } else {
     replyMessage(event.replyToken, '音声ありがとうございます。\nしっかり聴かせていただきます。');
@@ -2128,7 +2254,7 @@ function monthlyParentAlbum() {
   var sentCount = 0;
   for (var k = 1; k < users.length; k++) {
     var userId = users[k][0]; if (!userId) continue;
-    if (!hasTag(userId, 'purchased_plan_parent')) continue;
+    if (!hasTag(userId, 'purchased_plan_family')) continue;
     if (hasTag(userId, 'deleted')) continue;
 
     var totalClicks = clickByUser[userId] || 0;
@@ -2262,7 +2388,7 @@ function _seedTestData() {
     ['Useed_001','テスト 個人A','SC-MAIN', 1, new Date(now.getTime() - 1*86400000), new Date(now.getTime() - 2*86400000), ['src_line','read_s0']],
     ['Useed_002','テスト 個人B','SC-MAIN', 2, new Date(now.getTime() - 2*86400000), new Date(now.getTime() - 4*86400000), ['src_line','read_s0','read_s1']],
     ['Useed_003','テスト 個人C','SC-MAIN', 3, new Date(now.getTime() - 1*86400000), new Date(now.getTime() - 6*86400000), ['src_line','read_s0','read_s1','read_s2']],
-    ['Useed_004','テスト 保護者D','SC-PARENT', 1, new Date(now.getTime() - 1*86400000), new Date(now.getTime() - 5*86400000), ['src_line','attr_parent','read_p1','purchased','purchased_plan_parent']],
+    ['Useed_004','テスト 保護者D','SC-PARENT', 1, new Date(now.getTime() - 1*86400000), new Date(now.getTime() - 5*86400000), ['src_line','attr_parent','read_p1','purchased','purchased_plan_family']],
     ['Useed_005','テスト 法人E','SC-ADULT', 1, new Date(now.getTime() - 3*86400000), new Date(now.getTime() - 8*86400000), ['src_line','attr_adult','purchased','purchased_plan_l3']],
   ];
   seedUsers.forEach(function(u) {
@@ -2296,7 +2422,7 @@ function _purgeTestData() {
 function goLive() {
   var props = PropertiesService.getScriptProperties();
   // readiness check
-  var required = ['STRIPE_SECRET_KEY','STRIPE_WEBHOOK_URL_SECRET','STRIPE_PRICE_L1','STRIPE_PRICE_L2','STRIPE_PRICE_L3','STRIPE_PRICE_PARENT','ANTHROPIC_API_KEY','ADMIN_TOKEN'];
+  var required = ['STRIPE_SECRET_KEY','STRIPE_WEBHOOK_URL_SECRET','STRIPE_PRICE_PERSONAL','STRIPE_PRICE_FAMILY','STRIPE_PRICE_CORP','ANTHROPIC_API_KEY','ADMIN_TOKEN'];
   var missing = required.filter(function(k){ return !props.getProperty(k); });
   if (missing.length > 0) {
     Logger.log('goLive aborted: missing required properties: ' + missing.join(', '));
@@ -2311,7 +2437,7 @@ function goLive() {
 
 // 全プロパティ設定状況をまとめてチェックする (本番リリース前のヘルスチェック)
 function checkProductionReadiness() {
-  var required = ['STRIPE_SECRET_KEY','STRIPE_WEBHOOK_URL_SECRET','STRIPE_PRICE_L1','STRIPE_PRICE_L2','STRIPE_PRICE_L3','STRIPE_PRICE_PARENT','ANTHROPIC_API_KEY','ADMIN_TOKEN'];
+  var required = ['STRIPE_SECRET_KEY','STRIPE_WEBHOOK_URL_SECRET','STRIPE_PRICE_PERSONAL','STRIPE_PRICE_FAMILY','STRIPE_PRICE_CORP','ANTHROPIC_API_KEY','ADMIN_TOKEN'];
   var recommended = ['SLACK_WEBHOOK_URL','OWNER_LINE_USER_ID','LINE_RICHMENU_PRO_ID','ALLOWED_TEST_UIDS','LIVE_OPEN_AFTER'];
   var props = PropertiesService.getScriptProperties();
   var missingRequired = [];
