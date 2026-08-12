@@ -1,0 +1,17 @@
+{
+  "name": "sho-eigo-gas",
+  "private": true,
+  "version": "0.0.0",
+  "description": "GAS (LINE Bot) source managed locally via clasp.",
+  "scripts": {
+    "login": "clasp login",
+    "pull": "clasp pull",
+    "push": "clasp push -f",
+    "deploy": "clasp deploy -i \"$GAS_DEPLOYMENT_ID\" -d \"manual: $(date -u +%Y-%m-%dT%H:%M:%SZ)\"",
+    "open": "clasp open",
+    "logs": "clasp logs"
+  },
+  "devDependencies": {
+    "@google/clasp": "2.4.2"
+  }
+}

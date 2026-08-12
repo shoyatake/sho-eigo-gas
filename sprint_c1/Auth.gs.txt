@@ -1,0 +1,145 @@
+/**
+ * Auth.gs — 認証 API（signup / login / logout）
+ *   依存:
+ *     - JWT.gs の issueJwt / verifyJwt / revokeJwt
+ *     - setupSheets 済みの 生徒マスター（email, passwordHash, role,
+ *       lineDisplayName, inviteCode, lastLoginAt 列を含むこと）
+ *
+ * パスワードハッシュ:
+ *   GAS 標準には bcrypt が無いため、PBKDF2 ライク（HMAC-SHA256 を 1,000 回反復）で代替。
+ *   保存形式: "pbkdf2$<iter>$<saltHex>$<hashB64>"
+ *
+ * 例外は throw、握りつぶさない。
+ */
+
+var AUTH_HASH_ITERATIONS = 1000;
+
+function signup(email, password, role, lineDisplayName) {
+  if (!email) throw new Error('email が空です');
+  if (!password || password.length < 8) throw new Error('password は 8 文字以上');
+  if (['parent', 'student', 'single'].indexOf(role) < 0) throw new Error('role は parent/student/single のいずれか');
+
+  var ctx = _master();
+  var rowIdx = _findRowByEmail(ctx, email);
+  if (rowIdx < 0) throw new Error('email が 生徒マスター に存在しません');
+
+  var row = ctx.values[rowIdx];
+  if (row[ctx.colIdx.passwordHash]) throw new Error('既に登録済みの email');
+
+  var saltHex = Utilities.getUuid().replace(/-/g, '');
+  var stored = 'pbkdf2$' + AUTH_HASH_ITERATIONS + '$' + saltHex + '$' + _hash(password, saltHex, AUTH_HASH_ITERATIONS);
+  var inviteCode = _generateUniqueInviteCode(ctx);
+  var sheetRow = rowIdx + 2; // ヘッダー1行 + 1-based
+
+  ctx.sheet.getRange(sheetRow, ctx.colIdx.passwordHash + 1).setValue(stored);
+  ctx.sheet.getRange(sheetRow, ctx.colIdx.role + 1).setValue(role);
+  if (lineDisplayName) {
+    ctx.sheet.getRange(sheetRow, ctx.colIdx.lineDisplayName + 1).setValue(lineDisplayName);
+  }
+  ctx.sheet.getRange(sheetRow, ctx.colIdx.inviteCode + 1).setValue(inviteCode);
+  ctx.sheet.getRange(sheetRow, ctx.colIdx.lastLoginAt + 1).setValue(new Date());
+
+  var jwt = issueJwt(email);
+  Logger.log('signup: ' + email + ' as ' + role);
+  return { token: jwt.token, userId: email, role: role, inviteCode: inviteCode, expiresAt: jwt.expiresAt };
+}
+
+function login(email, password) {
+  if (!email || !password) throw new Error('email/password が空です');
+  var ctx = _master();
+  var rowIdx = _findRowByEmail(ctx, email);
+  if (rowIdx < 0) throw new Error('invalid credentials');
+
+  var row = ctx.values[rowIdx];
+  var stored = String(row[ctx.colIdx.passwordHash] || '');
+  if (!stored) throw new Error('invalid credentials');
+  if (!_verify(password, stored)) throw new Error('invalid credentials');
+
+  var sheetRow = rowIdx + 2;
+  ctx.sheet.getRange(sheetRow, ctx.colIdx.lastLoginAt + 1).setValue(new Date());
+
+  var role = String(row[ctx.colIdx.role] || '');
+  var jwt = issueJwt(email);
+  Logger.log('login: ' + email);
+  return { token: jwt.token, userId: email, role: role, expiresAt: jwt.expiresAt };
+}
+
+function logout(token) {
+  var claims = verifyJwt(token);
+  var ok = revokeJwt(claims.jti);
+  Logger.log('logout: ' + claims.userId + ' jti=' + claims.jti);
+  return { ok: ok, userId: claims.userId };
+}
+
+// ---------- 内部ヘルパー ----------
+
+function _master() {
+  var spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  if (!spreadsheetId) throw new Error('ScriptProperties に SPREADSHEET_ID が設定されていません');
+  var sheet = SpreadsheetApp.openById(spreadsheetId).getSheetByName('生徒マスター');
+  if (!sheet) throw new Error('シート「生徒マスター」が存在しません');
+  var values = sheet.getDataRange().getValues();
+  if (values.length < 1) throw new Error('生徒マスターが空です');
+  var headers = values[0].map(function (v) { return String(v); });
+  var required = ['email', 'passwordHash', 'role', 'lineDisplayName', 'inviteCode', 'lastLoginAt'];
+  var colIdx = {};
+  for (var i = 0; i < required.length; i++) {
+    var idx = headers.indexOf(required[i]);
+    if (idx < 0) throw new Error('生徒マスターに列が存在しません: ' + required[i]);
+    colIdx[required[i]] = idx;
+  }
+  return { sheet: sheet, values: values.slice(1), colIdx: colIdx };
+}
+
+function _findRowByEmail(ctx, email) {
+  var col = ctx.colIdx.email;
+  for (var i = 0; i < ctx.values.length; i++) {
+    if (String(ctx.values[i][col]) === email) return i;
+  }
+  return -1;
+}
+
+function _hash(password, saltHex, iterations) {
+  var saltBytes = Utilities.newBlob(saltHex).getBytes();
+  var bytes = Utilities.computeHmacSha256Signature(
+    Utilities.newBlob(password + saltHex).getBytes(),
+    saltBytes
+  );
+  for (var i = 1; i < iterations; i++) {
+    bytes = Utilities.computeHmacSha256Signature(bytes, saltBytes);
+  }
+  return Utilities.base64Encode(bytes);
+}
+
+function _verify(password, stored) {
+  var parts = String(stored).split('$');
+  if (parts.length !== 4 || parts[0] !== 'pbkdf2') return false;
+  var iters = Number(parts[1]);
+  if (!iters || iters < 1) return false;
+  var computed = _hash(password, parts[2], iters);
+  return _ctEqualStr(computed, parts[3]);
+}
+
+function _ctEqualStr(a, b) {
+  var len = Math.max(a.length, b.length);
+  var diff = a.length ^ b.length;
+  for (var i = 0; i < len; i++) {
+    var av = i < a.length ? a.charCodeAt(i) : 0;
+    var bv = i < b.length ? b.charCodeAt(i) : 0;
+    diff |= (av ^ bv);
+  }
+  return diff === 0;
+}
+
+function _generateUniqueInviteCode(ctx) {
+  var col = ctx.colIdx.inviteCode;
+  for (var attempt = 0; attempt < 8; attempt++) {
+    var code = ('00000000' + Math.floor(Math.random() * 100000000).toString()).slice(-8);
+    var dup = false;
+    for (var i = 0; i < ctx.values.length; i++) {
+      if (String(ctx.values[i][col]) === code) { dup = true; break; }
+    }
+    if (!dup) return code;
+  }
+  throw new Error('inviteCode の生成に失敗（衝突）');
+}

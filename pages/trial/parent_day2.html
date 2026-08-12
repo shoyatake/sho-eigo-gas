@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#1a2d45">
+<title>音で残す成長のアルバム — Day2 | sho eigo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Noto+Serif+JP:wght@700;900&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --nv:#1a2d45; --nv2:#243b5b; --nv3:#0f1f35;
+  --gd:#c9a84c; --gd2:#e8c96a; --gd3:#a88832;
+  --bg:#faf9f5; --card:#fff;
+  --txt:#1a2d45; --mut:#6a7891; --mut2:#9aa3b5;
+  --bd:#e5e0d0; --bd2:#d9d1b8;
+  --rd:#c84a4a; --gr:#4a8c5f; --bl:#3a6ea5; --pr:#7b4ab5; --pr2:#9f6cd9;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.06);
+  --shadow-md:0 2px 8px rgba(0,0,0,.08);
+  --shadow-lg:0 8px 24px rgba(0,0,0,.12);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;}
+html,body{background:var(--bg);color:var(--txt);font-family:'Noto Sans JP',sans-serif;font-size:16px;line-height:1.7;overflow-x:hidden;}
+button{font-family:inherit;cursor:pointer;}
+
+.app{max-width:640px;margin:0 auto;min-height:100vh;padding-bottom:120px;position:relative;}
+
+.hd{background:var(--nv);color:white;padding:11px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;border-bottom:2px solid var(--gd);}
+.hd-logo{font-weight:900;letter-spacing:3px;font-size:15px;}
+.hd-logo em{color:var(--gd);font-style:normal;}
+.hd-badge{margin-left:auto;font-size:9.5px;color:var(--gd);letter-spacing:2px;font-weight:700;background:rgba(201,168,76,.12);padding:4px 10px;border-radius:99px;}
+
+.prog{padding:8px 14px 6px;display:flex;gap:3px;background:white;border-bottom:1px solid var(--bd);}
+.prog-dot{flex:1;height:3px;background:var(--bd);border-radius:99px;transition:all .4s;}
+.prog-dot.active{background:var(--gd);box-shadow:0 0 8px rgba(201,168,76,.6);}
+.prog-dot.done{background:var(--gr);}
+
+.sh{padding:20px 18px 12px;background:white;border-bottom:2px solid var(--gd);}
+.sh-meta{font-size:10px;color:var(--gd);letter-spacing:2.5px;font-weight:700;margin-bottom:6px;}
+.sh-ttl{font-size:20px;font-weight:900;color:var(--nv);line-height:1.4;}
+.sh-sub{font-size:12px;color:var(--mut);margin-top:6px;font-weight:500;}
+
+.body{padding:16px;}
+.step{display:none;animation:fi .4s ease;}
+.step.active{display:block;}
+@keyframes fi{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;margin-bottom:14px;overflow:hidden;box-shadow:var(--shadow-sm);}
+.card-ttl{background:var(--nv);color:white;padding:11px 14px;font-size:13px;font-weight:700;letter-spacing:1px;display:flex;align-items:center;gap:8px;}
+.card-ttl .ic{font-size:16px;}
+.card-body{padding:16px;}
+
+.pb{padding:13px 14px;border-radius:8px;margin-bottom:12px;font-size:13px;line-height:1.8;}
+.pb:last-child{margin-bottom:0;}
+.pb.rd{background:#fef3f2;border-left:3px solid var(--rd);color:#6b2626;}
+.pb.bl{background:#f0f7fb;border-left:3px solid var(--bl);color:#234c6e;}
+.pb.gr{background:#f1f7f3;border-left:3px solid var(--gr);color:#2a5c3f;}
+.pb.yl{background:#fef8e7;border-left:3px solid var(--gd);color:#6b5420;}
+.pb.pr{background:#f5f0fa;border-left:3px solid var(--pr);color:#4a2e70;}
+
+.passage{background:linear-gradient(135deg,#faf7ee,#fffdf4);border:2px solid var(--gd);border-radius:14px;padding:20px 18px;margin-bottom:14px;position:relative;}
+.passage-ttl{font-size:10px;letter-spacing:2px;color:var(--gd);font-weight:700;margin-bottom:10px;text-align:center;}
+.passage-en{font-family:'Inter',sans-serif;font-size:15px;line-height:2;color:var(--nv);font-weight:500;margin-bottom:12px;}
+.passage-ja{font-size:11.5px;color:var(--mut);line-height:1.9;padding-top:12px;border-top:1px dashed var(--bd);}
+.passage-meta{position:absolute;top:-10px;right:12px;background:var(--gd);color:var(--nv);font-size:10px;font-weight:900;padding:2px 10px;border-radius:99px;letter-spacing:1px;}
+
+/* ═══ 録音UI（Day1と共通） ═══ */
+.rec-console{background:linear-gradient(135deg,var(--gd3),var(--gd));color:white;border-radius:16px;padding:22px 18px;text-align:center;margin-bottom:14px;box-shadow:var(--shadow-lg);position:relative;overflow:hidden;}
+.rec-console::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,transparent,white,transparent);animation:shimmer 3s linear infinite;}
+@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.rec-label{font-size:10px;letter-spacing:3px;color:white;font-weight:700;margin-bottom:6px;}
+.rec-status{font-size:11px;color:rgba(255,255,255,.85);margin-bottom:10px;}
+.rec-status.live{color:#ffe;animation:bl 1s infinite;}
+@keyframes bl{50%{opacity:.3}}
+.rec-timer{font-family:'Inter',sans-serif;font-size:36px;font-weight:900;color:white;margin-bottom:14px;font-variant-numeric:tabular-nums;letter-spacing:2px;}
+.rec-wave{height:50px;background:rgba(0,0,0,.3);border-radius:6px;margin-bottom:16px;overflow:hidden;}
+.rec-wave canvas{width:100%;height:100%;display:block;}
+.rec-btn-main{width:70px;height:70px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#ff6b6b,#cc2020);border:none;color:white;font-size:24px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(204,32,32,.5),inset 0 2px 4px rgba(255,255,255,.3);transition:all .2s;margin:0 auto;}
+.rec-btn-main:active{transform:scale(.92);}
+.rec-btn-main.stop{background:radial-gradient(circle at 30% 30%,#666,#222);}
+.rec-tip{font-size:11px;color:rgba(255,255,255,.75);margin-top:14px;line-height:1.7;}
+.rec-playback{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);border-radius:10px;padding:14px;margin-top:14px;display:none;}
+.rec-playback.show{display:block;}
+.rec-playback audio{width:100%;margin-top:8px;}
+.rec-playback-lbl{font-size:11px;color:white;font-weight:700;letter-spacing:1px;}
+
+/* ═══ セレモニー（最重要演出） ═══ */
+.ceremony{background:linear-gradient(135deg,#0f1f35,#1a2d45);color:white;border-radius:20px;padding:28px 22px;margin-bottom:20px;position:relative;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.3);}
+.ceremony::before{content:"";position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle,rgba(201,168,76,.15),transparent 50%);animation:rot 20s linear infinite;}
+@keyframes rot{to{transform:rotate(360deg)}}
+.ceremony-inner{position:relative;z-index:1;}
+.ceremony-meta{text-align:center;font-size:10px;letter-spacing:3px;color:var(--gd);font-weight:700;margin-bottom:8px;}
+.ceremony-ttl{text-align:center;font-family:'Noto Serif JP',serif;font-size:22px;font-weight:900;line-height:1.4;margin-bottom:6px;}
+.ceremony-sub{text-align:center;font-size:12px;color:rgba(255,255,255,.7);margin-bottom:24px;}
+
+.audio-track{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:14px;transition:all .3s;}
+.audio-track.active{background:rgba(201,168,76,.2);border-color:var(--gd);box-shadow:0 4px 20px rgba(201,168,76,.25);transform:scale(1.02);}
+.audio-track-num{background:rgba(201,168,76,.2);color:var(--gd);width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Noto Serif JP',serif;font-weight:900;font-size:18px;flex-shrink:0;border:2px solid var(--gd);}
+.audio-track.active .audio-track-num{background:var(--gd);color:var(--nv);}
+.audio-track-info{flex:1;min-width:0;}
+.audio-track-ttl{font-size:13px;font-weight:800;color:white;margin-bottom:3px;}
+.audio-track-sub{font-size:10.5px;color:rgba(255,255,255,.6);font-family:'Inter',sans-serif;}
+.audio-track-time{font-size:10px;color:var(--gd);font-family:'Inter',monospace;letter-spacing:1px;margin-top:4px;}
+.audio-track-play{background:var(--gd);color:var(--nv);border:none;width:40px;height:40px;border-radius:50%;font-size:13px;flex-shrink:0;transition:all .2s;}
+.audio-track-play:active{transform:scale(.9);}
+
+.ceremony-play-all{background:linear-gradient(135deg,var(--gd),var(--gd2));color:var(--nv);border:none;border-radius:14px;padding:18px;font-size:15px;font-weight:900;width:100%;margin-top:8px;box-shadow:0 4px 20px rgba(201,168,76,.4);display:flex;align-items:center;justify-content:center;gap:8px;}
+.ceremony-play-all:active{transform:scale(.98);}
+.ceremony-play-all.playing{background:white;}
+
+.ceremony-progress{background:rgba(255,255,255,.1);height:4px;border-radius:2px;margin:14px 0 0;overflow:hidden;}
+.ceremony-progress-bar{background:linear-gradient(90deg,var(--gd),var(--gd2));height:100%;width:0%;transition:width .1s linear;}
+
+.ceremony-quote{text-align:center;font-family:'Noto Serif JP',serif;font-size:14px;font-weight:700;color:var(--gd);margin-top:20px;line-height:1.7;padding:16px;background:rgba(201,168,76,.08);border-radius:10px;border:1px solid rgba(201,168,76,.2);}
+
+/* ═══ 有料ロック演出 ═══ */
+.paywall{position:relative;border-radius:16px;overflow:hidden;margin-bottom:20px;}
+.paywall-content{background:var(--card);padding:24px;opacity:.4;filter:blur(3px);pointer-events:none;user-select:none;}
+.paywall-content h3{font-size:16px;font-weight:900;color:var(--nv);margin-bottom:14px;}
+.paywall-chart{background:linear-gradient(to top,#ddd,#eee);border-radius:10px;height:140px;margin-bottom:14px;display:flex;align-items:flex-end;gap:6px;padding:12px;}
+.paywall-bar{flex:1;background:linear-gradient(to top,var(--gd),var(--gd2));border-radius:4px 4px 0 0;}
+.paywall-list{list-style:none;}
+.paywall-list li{padding:6px 0;font-size:13px;color:var(--txt);border-bottom:1px solid #eee;}
+.paywall-list li::before{content:"✓ ";color:var(--gr);font-weight:700;}
+
+.paywall-overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.85) 0%,rgba(255,255,255,.98) 60%,white 100%);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:40px 20px 24px;}
+.paywall-lock{background:linear-gradient(135deg,var(--pr),var(--pr2));color:white;width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 8px 24px rgba(123,74,181,.35);margin-bottom:14px;}
+.paywall-ttl{font-size:16px;font-weight:900;color:var(--nv);text-align:center;margin-bottom:6px;}
+.paywall-sub{font-size:12px;color:var(--mut);text-align:center;margin-bottom:16px;line-height:1.7;}
+.paywall-list2{list-style:none;margin-bottom:16px;width:100%;max-width:280px;}
+.paywall-list2 li{padding:5px 0;font-size:12px;color:var(--nv);font-weight:600;text-align:center;}
+.paywall-list2 li::before{content:"🔓 ";}
+.paywall-cta{background:linear-gradient(135deg,var(--pr),var(--pr2));color:white;border:none;border-radius:12px;padding:14px 28px;font-size:13px;font-weight:800;box-shadow:0 4px 16px rgba(123,74,181,.35);width:100%;max-width:280px;}
+
+/* ═══ 同意フォーム ═══ */
+.consent-intro{background:linear-gradient(135deg,#faf7ee,#fffdf4);border:2px solid var(--gd);border-radius:14px;padding:18px;margin-bottom:14px;text-align:center;}
+.consent-intro-ttl{font-size:17px;font-weight:900;color:var(--nv);margin-bottom:8px;line-height:1.4;}
+.consent-intro-sub{font-size:12px;color:var(--mut);line-height:1.9;}
+
+.consent-opt{background:white;border:2px solid var(--bd);border-radius:14px;padding:16px;margin-bottom:10px;position:relative;transition:all .3s;cursor:pointer;}
+.consent-opt:active{transform:scale(.98);}
+.consent-opt.selected{border-color:var(--gd);background:#faf7ee;box-shadow:0 6px 20px rgba(201,168,76,.2);}
+.consent-opt.selected::before{content:"✓";position:absolute;top:12px;right:14px;background:var(--gd);color:var(--nv);width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;}
+.consent-opt-hdr{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.consent-opt-ic{font-size:26px;flex-shrink:0;}
+.consent-opt-ttl{font-size:14px;font-weight:900;color:var(--nv);}
+.consent-opt-desc{font-size:12px;color:var(--mut);line-height:1.8;margin-bottom:8px;}
+.consent-opt-bonus{background:rgba(201,168,76,.12);border-radius:8px;padding:8px 12px;font-size:11.5px;color:#6b5420;line-height:1.7;margin-top:8px;}
+.consent-opt-bonus strong{color:var(--nv);}
+
+.submit-big{background:linear-gradient(135deg,var(--gd),var(--gd2));color:var(--nv);border:none;border-radius:14px;padding:18px;font-size:15px;font-weight:900;width:100%;box-shadow:0 6px 20px rgba(201,168,76,.4);margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;}
+.submit-big:disabled{background:#ccc;color:#777;box-shadow:none;opacity:.6;}
+.submit-big:not(:disabled):active{transform:scale(.98);}
+
+/* ═══ sent完了画面 ═══ */
+.thanks-hero{background:linear-gradient(135deg,#faf7ee,#fffdf4);border:2px solid var(--gd);border-radius:20px;padding:28px 22px;text-align:center;margin-bottom:16px;}
+.thanks-hero-emoji{font-size:60px;margin-bottom:12px;animation:bounce 1.5s infinite;}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.thanks-hero-ttl{font-family:'Noto Serif JP',serif;font-size:22px;font-weight:900;color:var(--nv);margin-bottom:10px;line-height:1.5;}
+.thanks-hero-sub{font-size:13px;color:var(--mut);line-height:2;}
+
+/* ═══ ナビ ═══ */
+.nav-btns{display:flex;gap:10px;padding:16px;position:fixed;bottom:0;left:50%;transform:translateX(-50%);max-width:640px;width:100%;background:linear-gradient(to top,white 60%,transparent);z-index:50;}
+.nav-btn{flex:1;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:800;transition:all .2s;}
+.nav-btn:active{transform:scale(.97);}
+.nav-btn.prev{background:white;border:1.5px solid var(--bd);color:var(--mut);max-width:100px;}
+.nav-btn.next{background:var(--nv);color:white;box-shadow:0 4px 14px rgba(26,45,69,.25);}
+.nav-btn.next.gold{background:linear-gradient(135deg,var(--gd),var(--gd2));color:var(--nv);box-shadow:0 4px 16px rgba(201,168,76,.4);}
+.nav-btn.next.disabled{background:#ccc;color:#777;box-shadow:none;opacity:.6;}
+
+/* ═══ sho先生モーダル ═══ */
+.sho-modal{position:fixed;inset:0;background:rgba(10,20,35,.94);z-index:9999;display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px 18px;backdrop-filter:blur(8px);}
+.sho-modal.open{display:flex;animation:fi .3s;}
+.sho-face-wrap{position:relative;margin-bottom:16px;}
+.sho-face-ring{width:120px;height:120px;border-radius:50%;overflow:hidden;border:4px solid var(--gd);box-shadow:0 0 0 6px rgba(201,168,76,.25),0 8px 32px rgba(0,0,0,.5);}
+.sho-face-ring img{width:100%;height:auto;object-fit:cover;object-position:center 8%;transform:scale(1.3) translateY(8px);}
+.sho-face-glow{position:absolute;inset:-10px;border-radius:50%;background:radial-gradient(circle,rgba(201,168,76,.35),transparent 70%);animation:gl 1.5s infinite;pointer-events:none;}
+@keyframes gl{0%,100%{opacity:.4}50%{opacity:1}}
+.sho-step-badge{position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);background:var(--gd);color:var(--nv);font-size:11px;font-weight:900;padding:3px 12px;border-radius:99px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);letter-spacing:.5px;}
+.sho-bubble-wrap{width:100%;max-width:360px;position:relative;margin-bottom:16px;}
+.sho-bubble-wrap::before{content:"";position:absolute;top:-10px;left:50%;transform:translateX(-50%);border:9px solid transparent;border-bottom-color:white;}
+.sho-bubble{background:white;border-radius:18px;padding:18px 20px;box-shadow:0 4px 20px rgba(0,0,0,.3);max-height:40vh;overflow-y:auto;}
+.sho-bubble-ttl{font-size:12px;font-weight:800;color:var(--gd);letter-spacing:1px;margin-bottom:10px;}
+.sho-bubble-text{font-size:13.5px;line-height:1.9;color:var(--nv);white-space:pre-wrap;font-weight:500;}
+.sho-modal-btns{display:flex;flex-direction:column;gap:10px;width:100%;max-width:360px;}
+.sho-btn-main{background:linear-gradient(135deg,var(--gd),var(--gd2));color:var(--nv);border:none;border-radius:14px;padding:16px;font-size:15px;font-weight:800;box-shadow:0 4px 16px rgba(201,168,76,.4);}
+.sho-btn-sub{background:rgba(255,255,255,.1);color:white;border:1.5px solid rgba(255,255,255,.25);border-radius:14px;padding:13px;font-size:13px;font-weight:600;}
+
+.tip-box{background:#faf6ea;border:1px dashed var(--gd);border-radius:10px;padding:12px 14px;margin:10px 0;font-size:12px;color:#6b5420;line-height:1.8;}
+.tip-box strong{color:var(--nv);}
+
+.hidden{display:none !important;}
+
+.social-proof{background:#f0f7fb;border:1px solid #c5d9ea;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:11.5px;color:#234c6e;line-height:1.8;}
+.social-proof strong{color:var(--nv);}
+
+.voice-selector { display:flex; align-items:center; gap:8px; margin:12px 0 16px; flex-wrap:wrap; }
+.voice-label { font-size:0.82rem; color:#888; }
+.voice-btn { background:#1a1a1a; color:#ccc; border:1px solid #444; border-radius:20px; padding:5px 14px; font-size:0.82rem; cursor:pointer; transition:all 0.2s; }
+.voice-btn:hover { border-color:#c9a84c; color:#c9a84c; }
+.voice-btn.active { background:#c9a84c; color:#000; border-color:#c9a84c; font-weight:bold; }
+</style>
+<script>
+const SHO_GAS_URL = 'https://script.google.com/macros/s/AKfycbyPRUaAdpv-4h5q8ARHbN1UN0ysfteUrGNxJcyc_3zIziCFaL1bxCfRe045BT-V5QNujA/exec';
+var selectedVoice = 'adam';
+var VOICE_ID_MAP = {
+  sho:    'ZYHkwuG2yr4rcubJRUms',
+  adam:   'pNInz6obpgDQGcFmaJgB',
+  rachel: '21m00Tcm4TlvDq8ikWAM',
+  bella:  'EXAVITQu4vr4xnSDxMaL'
+};
+var VOICE_ID_MAP = {
+  sho:    'ZYHkwuG2yr4rcubJRUms',
+  adam:   'pNInz6obpgDQGcFmaJgB',
+  rachel: '21m00Tcm4TlvDq8ikWAM',
+  bella:  'EXAVITQu4vr4xnSDxMaL'
+};
+var currentAudio = null;
+var ttsCache = {};
+var currentNarration = null;
+function getLineUserId() {
+  try { const s = localStorage.getItem('sho_line_uid'); if (s) return s; } catch(e) {}
+  const p = new URLSearchParams(location.search);
+  const uid = p.get('uid') || p.get('userId');
+  if (uid) { try { localStorage.setItem('sho_line_uid', uid); } catch(e){} return uid; }
+  return null;
+}
+async function sendV3Event(eventType, payload) {
+  const userId = getLineUserId();
+  if (!userId) return;
+  try { await fetch(SHO_GAS_URL, {method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify(Object.assign({v3_event:eventType, userId:userId}, payload||{}))}); } catch(e) {}
+}
+
+</script>
+</head>
+<body>
+
+<!-- sho先生モーダル -->
+<div class="sho-modal" id="shoModal">
+  <div class="sho-face-wrap">
+    <div class="sho-face-glow"></div>
+    <div class="sho-face-ring">
+      <img src="https://sho-blog.com/all/sho_face.png" alt="sho先生" onerror="this.style.display='none';this.parentNode.innerHTML='<div style=\'width:100%;height:100%;background:linear-gradient(135deg,#c9a84c,#e8c96a);display:flex;align-items:center;justify-content:center;font-size:42px;\'>👨‍🏫</div>'"/>
+    </div>
+    <div class="sho-step-badge" id="shoStepBadge">Step 0</div>
+  </div>
+  <div class="sho-bubble-wrap">
+    <div class="sho-bubble">
+      <div class="sho-bubble-ttl" id="shoBubbleTtl">🌅 再会</div>
+      <div class="sho-bubble-text" id="shoBubbleText"></div>
+    </div>
+  </div>
+  <div class="sho-modal-btns">
+    <button class="sho-btn-main" onclick="shoProceed()">▶ やろう！</button>
+  </div>
+</div>
+
+<div class="app">
+
+<div class="hd">
+  <div class="hd-logo">sho <em>eigo</em></div>
+  <div class="hd-badge">◦ 無料体験 DAY 2 ◦</div>
+</div>
+
+<div class="prog" id="progBar"></div>
+
+<div class="sh">
+  <div class="sh-meta" id="stepMeta">DAY 2 · STEP 0 / 6</div>
+  <div class="sh-ttl" id="stepTtl">おかえり！</div>
+  <div class="sh-sub" id="stepSub">24時間経ったで、準備できた？</div>
+</div>
+
+<div class="body">
+
+<!-- ══════════════════════════════════════ -->
+<!-- Step 0: リユニオン -->
+<!-- ══════════════════════════════════════ -->
+<div class="step active" id="step0">
+  <div class="card">
+    <div class="card-ttl"><span class="ic">🌅</span>おかえり！24時間経ったで</div>
+    <div class="card-body">
+      <div class="pb pr">
+        よう戻ってきてくれた！<br>
+        今日はDay2、<strong>2日間の集大成</strong>やで。<br>
+        所要時間は約20分。最後まで一緒にやろう✨
+      </div>
+      <div class="pb yl">
+        💡 <strong>今日やること</strong><br>
+        1. パッセージの短い復習（10分）<br>
+        2. Day2アフター録音（1分）<br>
+        3. <strong>3つの録音を聴き比べる特別なセレモニー</strong><br>
+        4. 保護者へお届け
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl"><span class="ic">🎧</span>昨日の音、覚えてる？</div>
+    <div class="card-body">
+      <div class="pb bl">
+        Day1のビフォー・アフター録音、少しだけ聴き直そう。<br>
+        「あ、確かにここまで変われたんや」という昨日の記憶を呼び起こすで。
+      </div>
+      <div style="display:grid;gap:10px;margin-top:12px;">
+        <button class="audio-track-play" onclick="playStoredRec('before')" style="background:var(--bl);color:white;width:auto;height:auto;border-radius:10px;padding:14px;font-size:13px;font-weight:700;">▶ Day1 ビフォー録音を聴く</button>
+        <button class="audio-track-play" onclick="playStoredRec('after1')" style="background:var(--gd);color:var(--nv);width:auto;height:auto;border-radius:10px;padding:14px;font-size:13px;font-weight:700;">▶ Day1 アフター録音を聴く</button>
+      </div>
+      <div class="tip-box">
+        💭 <strong>覚えてる？</strong>昨日のビフォーとアフター、確かに違ってたよな。<br>
+        今日の目標は、<strong>さらにその先へ</strong>や。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ -->
+<!-- Step 1: 復習（圧縮版） -->
+<!-- ══════════════════════════════════════ -->
+<div class="step" id="step1">
+  <div class="card">
+    <div class="card-ttl"><span class="ic">🔁</span>パッセージ復習（約10分）</div>
+    <div class="card-body">
+      <div class="pb bl">
+        昨日と同じ文章を、短めに復習するで。<br>
+        <strong>シャドーイング3回 → オーバーラッピング3回 → 音読1回</strong>の流れや！
+      </div>
+    </div>
+  </div>
+
+  <div class="passage">
+    <div class="passage-meta">52 words</div>
+    <div class="passage-ttl">◦ A Day with My Friend ◦</div>
+    <div class="passage-en">
+      Hello! My name is Ken.<br>
+      Today I'm going to meet my friend at the station.<br>
+      We want to eat lunch together and watch a movie.<br>
+      I got a good grade on my English test yesterday, so I feel really happy.<br>
+      I'd like to have a bottle of water first.<br>
+      Let's go!
+    </div>
+    <div class="passage-ja">
+      こんにちは！ぼくの名前はケンです。今日は駅で友達に会います。一緒にお昼ごはんを食べて映画を見るつもりです。昨日、英語のテストでいい点が取れて、すごくうれしい気分です。まずは水を一本ほしいな。さあ、行こう！
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl"><span class="ic">🗣</span>A. シャドーイング（3回）</div>
+    <div class="voice-selector hidden">
+  <span class="voice-label">🎙 ボイスを選んで：</span>
+  <button class="voice-btn active" data-voice="adam" onclick="setVoice('adam')">Adam</button>
+  <button class="voice-btn" data-voice="chris" onclick="setVoice('chris')">Chris</button>
+  <button class="voice-btn" data-voice="rivera" onclick="setVoice('rivera')">Rivera</button>
+</div>
+<div class="card-body">
+      <p style="font-size:12px;color:var(--mut);margin-bottom:10px;">音声の0.5秒後ろを追いかけて声を出す</p>
+      <div style="display:grid;gap:8px;">
+        <button onclick="spkPassage(0.75)" style="background:var(--bl);color:white;border:none;border-radius:10px;padding:12px;font-size:12px;font-weight:700;">🐢 1回目（0.75倍速）</button>
+        <button onclick="spkPassage(0.9)" style="background:var(--nv);color:white;border:none;border-radius:10px;padding:12px;font-size:12px;font-weight:700;">▶ 2回目（標準）</button>
+        <button onclick="spkPassage(1.0)" style="background:#e08a3a;color:white;border:none;border-radius:10px;padding:12px;font-size:12px;font-weight:700;">⚡ 3回目（通常速度）</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl"><span class="ic">🎵</span>B. オーバーラッピング（3回）</div>
+    <div class="card-body">
+      <p style="font-size:12px;color:var(--mut);margin-bottom:10px;">音声と同時に声を重ねる</p>
+      <div style="display:grid;gap:8px;">
+        <button onclick="spkPassage(0.85)" style="background:var(--nv);color:white;border:none;border-radius:10px;padding:12px;font-size:12px;font-weight:700;">▶ 標準速度 × 3回</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl"><span class="ic">📚</span>C. 音読（1回）</div>
+    <div class="card-body">
+      <p style="font-size:12px;color:var(--mut);margin-bottom:10px;">音声なしで、最初から最後まで自力で読む</p>
+      <div class="tip-box">
+        💡 「昨日より口が動く」感じ、ある？<br>
+        それが<strong>体に音が入った証拠</strong>やで✨
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ -->
+<!-- Step 2: Day2アフター録音（音源③） -->
+<!-- ══════════════════════════════════════ -->
+<div class="step" id="step2">
+  <div class="card">
+    <div class="card-ttl"><span class="ic">🎙</span>最後の録音【音源③】</div>
+    <div class="card-body">
+      <div class="pb pr">
+        これが<strong>2日間の集大成の録音</strong>や。<br>
+        今出せるベストで読んでみて。完璧じゃなくてええ。<br>
+        <strong>「昨日の自分と今の自分、どっちが伸びてるか」</strong>を、録音で確かめるで✨
+      </div>
+    </div>
+  </div>
+
+  <div class="passage">
+    <div class="passage-meta">52 words</div>
+    <div class="passage-ttl">◦ A Day with My Friend ◦</div>
+    <div class="passage-en">
+      Hello! My name is Ken.<br>
+      Today I'm going to meet my friend at the station.<br>
+      We want to eat lunch together and watch a movie.<br>
+      I got a good grade on my English test yesterday, so I feel really happy.<br>
+      I'd like to have a bottle of water first.<br>
+      Let's go!
+    </div>
+  </div>
+
+  <div class="rec-console">
+    <div class="rec-label">◦ FINAL RECORDING ◦</div>
+    <div class="rec-status" id="rec3Status">準備ができたらボタンを押してな</div>
+    <div class="rec-timer" id="rec3Timer">00:00</div>
+    <div class="rec-wave"><canvas id="rec3Wave"></canvas></div>
+    <button class="rec-btn-main" id="rec3Btn" onclick="toggleRec(3)">🎙</button>
+    <div class="rec-tip">録音は最長60秒</div>
+    <div class="rec-playback" id="rec3Playback">
+      <div class="rec-playback-lbl">✅ Day2アフター録音 保存完了</div>
+      <audio controls id="rec3Audio"></audio>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ -->
+<!-- Step 3: 3音源連結セレモニー（最大のピーク） -->
+<!-- ══════════════════════════════════════ -->
+<div class="step" id="step3">
+  <div class="ceremony">
+    <div class="ceremony-inner">
+      <div class="ceremony-meta">◦ YOUR 2-DAY JOURNEY ◦</div>
+      <div class="ceremony-ttl">2日間の成長の軌跡</div>
+      <div class="ceremony-sub">3つの録音が、君の変化を物語る</div>
+
+      <div class="audio-track" id="track1">
+        <div class="audio-track-num">Ⅰ</div>
+        <div class="audio-track-info">
+          <div class="audio-track-ttl">昨日の朝の君</div>
+          <div class="audio-track-sub">スタート地点</div>
+          <div class="audio-track-time">Day1 · Before</div>
+        </div>
+        <button class="audio-track-play" onclick="playTrack(1)">▶</button>
+      </div>
+
+      <div class="audio-track" id="track2">
+        <div class="audio-track-num">Ⅱ</div>
+        <div class="audio-track-info">
+          <div class="audio-track-ttl">昨日の夜の君</div>
+          <div class="audio-track-sub">変化の始まり</div>
+          <div class="audio-track-time">Day1 · After</div>
+        </div>
+        <button class="audio-track-play" onclick="playTrack(2)">▶</button>
+      </div>
+
+      <div class="audio-track" id="track3">
+        <div class="audio-track-num">Ⅲ</div>
+        <div class="audio-track-info">
+          <div class="audio-track-ttl">今、この瞬間の君</div>
+          <div class="audio-track-sub">2日間の集大成</div>
+          <div class="audio-track-time">Day2 · Final</div>
+        </div>
+        <button class="audio-track-play" onclick="playTrack(3)">▶</button>
+      </div>
+
+      <button class="ceremony-play-all" id="playAllBtn" onclick="playAllSequential()">
+        <span>▶</span>
+        <span>3つを続けて聴く（約90秒）</span>
+      </button>
+
+      <div class="ceremony-progress">
+        <div class="ceremony-progress-bar" id="ceremonyProgBar"></div>
+      </div>
+
+      <div class="ceremony-quote">
+        "2日間、ほんまによう頑張った。<br>
+        これが君の「音の軌跡」や"
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ -->
+<!-- Step 4: 有料ロック演出 -->
+<!-- ══════════════════════════════════════ -->
+<div class="step" id="step4">
+  <div class="card">
+    <div class="card-ttl"><span class="ic">📊</span>君の3ヶ月後、見える？</div>
+    <div class="card-body">
+      <div class="pb pr">
+        この2日間で、<strong>確実に音が変わった</strong>のを体感してくれたやろ？<br>
+        そしたら「3ヶ月続けたらどうなる？」って気になるよな。<br>
+        ここから先は、保護者の人と一緒に見てほしいねん。
+      </div>
+    </div>
+  </div>
+
+  <!-- ロック演出 -->
+  <div class="paywall">
+    <div class="paywall-content">
+      <h3>📈 あなたの3ヶ月後の予測</h3>
+      <div class="paywall-chart">
+        <div class="paywall-bar" style="height:30%"></div>
+        <div class="paywall-bar" style="height:45%"></div>
+        <div class="paywall-bar" style="height:62%"></div>
+        <div class="paywall-bar" style="height:78%"></div>
+        <div class="paywall-bar" style="height:88%"></div>
+        <div class="paywall-bar" style="height:95%"></div>
+      </div>
+      <ul class="paywall-list">
+        <li>カタカナ度：85% → 18%予測</li>
+        <li>音のつながり検出：3箇所 → 45箇所</li>
+        <li>英検3級リスニング：合格ライン到達予測</li>
+        <li>ネイティブ音への慣れ：+320%</li>
+      </ul>
+      <h3 style="margin-top:16px;">🎯 90日の学習ロードマップ</h3>
+      <ul class="paywall-list">
+        <li>Week 1-2：カタカナ英語RESET完了</li>
+        <li>Week 3-4：英検4級レベル突破</li>
+        <li>Week 5-8：英検3級リスニング対策</li>
+        <li>Week 9-12：英検合格 or 次レベルへ</li>
+      </ul>
+    </div>
+
+    <div class="paywall-overlay">
+      <div class="paywall-lock">🔒</div>
+      <div class="paywall-ttl">ここから先は<br>保護者プラン限定</div>
+      <div class="paywall-sub">
+        詳細な成長予測と、<br>
+        君専用の90日ロードマップを用意してるで
+      </div>
+      <ul class="paywall-list2">
+        <li>3ヶ月後の成長予測グラフ</li>
+        <li>90日の学習ロードマップ</li>
+        <li>sho先生の個別コメント</li>
+        <li>AI発音分析レポート</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="social-proof">
+    💬 <strong>今月、156名の保護者が「保護者プラン」を選択しています</strong><br>
+    みんな、お子さまの2日間の成長を見て決めてくれました。
+  </div>
+
+  <div class="card">
+    <div class="card-body" style="text-align:center;">
+      <div style="font-size:13px;color:var(--mut);line-height:1.9;margin-bottom:14px;">
+        保護者の人に、<strong>今日の録音と成長レポートを届けたい</strong>よな？<br>
+        次のページで、保護者に送る準備をするで📬
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ -->
+<!-- Step 5: 保護者送信の同意フォーム -->
+<!-- ══════════════════════════════════════ -->
+<div class="step" id="step5">
+  <div class="consent-intro">
+    <div class="consent-intro-ttl">君の声、どう使ってほしい？</div>
+    <div class="consent-intro-sub">
+      3つの録音と成長データを、<br>
+      保護者の人に届ける前に、<strong>1つだけ教えてほしいこと</strong>があるねん。
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl"><span class="ic">📢</span>sho先生からお願い</div>
+    <div class="card-body">
+      <div class="pb pr">
+        君の「Day1ビフォー」と「Day2アフター」の録音、<br>
+        ほんまに素晴らしい変化やねん。<br>
+        もしよかったら、<strong>これから英語始める他の子のために使わせてもらいたい</strong>ねん。<br><br>
+        下の3つから選んでな。どれでもOK、君の気持ちを大事にして😊
+      </div>
+    </div>
+  </div>
+
+  <!-- 3択 -->
+  <div class="consent-opt" id="opt1" onclick="selectConsent('full')">
+    <div class="consent-opt-hdr">
+      <div class="consent-opt-ic">⭐</div>
+      <div class="consent-opt-ttl">どんどん使ってOK！</div>
+    </div>
+    <div class="consent-opt-desc">
+      sho先生がインスタとかで<br>
+      「こんな子、めっちゃ伸びたで〜！」って紹介してくれる！
+    </div>
+    <div class="consent-opt-bonus">
+      🎁 <strong>特別ボーナス：保護者プラン初月50%OFF</strong><br>
+      ¥3,980 → <strong>¥1,990</strong>（1ヶ月限定）
+    </div>
+  </div>
+
+  <div class="consent-opt" id="opt2" onclick="selectConsent('anonymous')">
+    <div class="consent-opt-hdr">
+      <div class="consent-opt-ic">🎭</div>
+      <div class="consent-opt-ttl">匿名ならOK</div>
+    </div>
+    <div class="consent-opt-desc">
+      名前や顔は出さずに、<strong>音声だけ</strong>使うのはOK。<br>
+      「ある中学生の音の変化」として紹介される。
+    </div>
+  </div>
+
+  <div class="consent-opt" id="opt3" onclick="selectConsent('private')">
+    <div class="consent-opt-hdr">
+      <div class="consent-opt-ic">🔒</div>
+      <div class="consent-opt-ttl">保護者にだけ送る</div>
+    </div>
+    <div class="consent-opt-desc">
+      今回はプライベートに、<br>
+      <strong>保護者にだけ</strong>録音とレポートを届ける。
+    </div>
+  </div>
+
+  <button class="submit-big" id="submitBtn" disabled onclick="submitToParent()">
+    <span>📬</span>
+    <span id="submitBtnText">選んでから送信</span>
+  </button>
+
+  <div class="tip-box" style="text-align:center;margin-top:12px;">
+    💭 <strong>どれを選んでも、君の録音が誰か傷つくことはあらへん。</strong><br>
+    sho先生、ぜんぶ責任もって使わせてもらうで🤝
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ -->
+<!-- Step 6: 送信完了 -->
+<!-- ══════════════════════════════════════ -->
+<div class="step" id="step6">
+  <div class="thanks-hero">
+    <div class="thanks-hero-emoji">💌</div>
+    <div class="thanks-hero-ttl" id="thanksTtl">保護者に送信完了！</div>
+    <div class="thanks-hero-sub" id="thanksSub">
+      2日間、ほんまにお疲れさま。<br>
+      これから保護者の人に、<br>
+      sho先生から丁寧なお手紙が届くで📨
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl"><span class="ic">📋</span>これから起こること</div>
+    <div class="card-body">
+      <div class="pb bl">
+        <strong>保護者の人のLINEに届くもの：</strong><br>
+        ✓ 3つの録音を1本にした音声<br>
+        ✓ 2日間の成長レポート（数値付き）<br>
+        ✓ 3ヶ月後の成長予測<br>
+        ✓ 続けるかどうかの相談フォーム
+      </div>
+      <div class="pb pr">
+        <strong>保護者の人が確認したら：</strong><br>
+        君も一緒に「続けるかどうか」を話し合ってな。<br>
+        2日間だけでもこんだけ変わったんやから、<br>
+        <strong>3ヶ月後の君が楽しみやで😊</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl"><span class="ic">🎁</span>最後に、sho先生から</div>
+    <div class="card-body">
+      <div class="pb pr">
+        2日間、画面の向こうで<strong>ほんまに頑張ってくれてありがとう</strong>。<br><br>
+        英語って「すぐに話せる」ものやない。<br>
+        でも「<strong>少しずつ変われる自分</strong>」を実感するのが、続ける最大のモチベーションやねん。<br><br>
+        君の今日の録音が、その第一歩や。<br>
+        <strong>この感覚、絶対に忘れんといてな</strong>✨
+      </div>
+      <div class="tip-box" style="text-align:center;">
+        🤝 <strong>続ける・続けないに関係なく、</strong><br>
+        君の頑張りはsho先生、ずっと覚えてるで。
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body" style="text-align:center;">
+      <p style="font-size:13px;color:var(--mut);line-height:1.9;margin-bottom:14px;">
+        何か相談したいことがあったら、<br>
+        いつでもLINEで話しかけてな📱
+      </p>
+      <a href="https://lin.ee/whBrh29" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#06C755;color:white;text-decoration:none;padding:15px 32px;border-radius:12px;font-weight:800;font-size:14px;box-shadow:0 4px 14px rgba(6,199,85,.3);">
+        📱 LINEでsho先生と話す
+      </a>
+    </div>
+  </div>
+  <!-- ★ NEW: 体験完了→コースページへの導線 ★ -->
+  <div class="card" style="background:linear-gradient(135deg,#1a2640,#0f1828);color:#f5f1ea;padding:28px 22px;margin-top:16px;border:1px solid #b89a4a;">
+    <div class="card-body" style="text-align:center;">
+      <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:11px;letter-spacing:0.4em;color:#d4b96a;margin-bottom:8px;text-transform:uppercase;">
+        ◆ Next Step ◆
+      </div>
+      <h3 style="font-size:20px;font-weight:900;color:#f5f1ea;margin-bottom:14px;letter-spacing:0.05em;line-height:1.5;">
+        この2日間を、<br>3ヶ月続けたら？
+      </h3>
+      <p style="font-size:13px;color:#ebd99e;line-height:1.9;margin-bottom:20px;">
+        2日間でこれだけ変わったんやから、<br>
+        3ヶ月続けたら、もっと変わるで。<br>
+        sho eigo には、君に合うコースが必ずある。
+      </p>
+
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:20px;text-align:left;">
+        <div style="background:rgba(245,241,234,0.08);padding:12px;border:1px solid rgba(184,154,74,0.3);">
+          <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:10px;color:#d4b96a;letter-spacing:0.2em;margin-bottom:4px;">L1 Foundation</div>
+          <div style="font-size:13px;font-weight:700;color:#f5f1ea;margin-bottom:4px;">基礎</div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:18px;color:#f5f1ea;"><span style="color:#b89a4a;font-size:11px;">¥</span>2,980<span style="font-size:10px;color:#ebd99e;">/月</span></div>
+        </div>
+        <div style="background:rgba(245,241,234,0.08);padding:12px;border:1px solid rgba(184,154,74,0.3);">
+          <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:10px;color:#d4b96a;letter-spacing:0.2em;margin-bottom:4px;">L2 Intermediate</div>
+          <div style="font-size:13px;font-weight:700;color:#f5f1ea;margin-bottom:4px;">中級</div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:18px;color:#f5f1ea;"><span style="color:#b89a4a;font-size:11px;">¥</span>3,480<span style="font-size:10px;color:#ebd99e;">/月</span></div>
+        </div>
+        <div style="background:rgba(245,241,234,0.08);padding:12px;border:1px solid rgba(184,154,74,0.3);">
+          <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:10px;color:#d4b96a;letter-spacing:0.2em;margin-bottom:4px;">For Parents</div>
+          <div style="font-size:13px;font-weight:700;color:#f5f1ea;margin-bottom:4px;">保護者プラン</div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:18px;color:#f5f1ea;"><span style="color:#b89a4a;font-size:11px;">¥</span>4,980<span style="font-size:10px;color:#ebd99e;">/月</span></div>
+        </div>
+        <div style="background:rgba(245,241,234,0.08);padding:12px;border:1px solid rgba(184,154,74,0.3);">
+          <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:10px;color:#d4b96a;letter-spacing:0.2em;margin-bottom:4px;">Eiken Pass</div>
+          <div style="font-size:13px;font-weight:700;color:#f5f1ea;margin-bottom:4px;">英検合格保証</div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:18px;color:#f5f1ea;"><span style="color:#b89a4a;font-size:11px;">¥</span>39,800<span style="font-size:10px;color:#ebd99e;">~</span></div>
+        </div>
+      </div>
+
+      <a href="https://sho-blog.com/courses/" style="display:block;background:#b89a4a;color:#0f1828;text-decoration:none;padding:18px 24px;border-radius:0;font-weight:900;font-size:14px;letter-spacing:0.25em;box-shadow:0 4px 14px rgba(184,154,74,.3);margin-bottom:10px;">
+        コース一覧を見る →
+      </a>
+
+      <div style="font-size:11px;color:#ebd99e;letter-spacing:0.1em;margin-top:8px;">
+        14日間全額返金保証つき · いつでも解約可能
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</div>
+
+<!-- ナビボタン -->
+<div class="nav-btns">
+  <button class="nav-btn prev" id="navPrev" onclick="prevStep()">← 戻る</button>
+  <button class="nav-btn next" id="navNext" onclick="nextStep()">次へ →</button>
+</div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// 状態管理
+// ═══════════════════════════════════════════
+var currentStep = 0;
+var TOTAL_STEPS = 7; // 0-6
+var recordings = {3:null}; // Day2 After
+var consentChoice = null;
+
+var STEP_META = {
+  0:{meta:'DAY 2 · STEP 0 / 6', ttl:'おかえり！', sub:'24時間経ったで、準備できた？'},
+  1:{meta:'DAY 2 · STEP 1 / 6', ttl:'パッセージ復習', sub:'シャドーイング → オーバーラッピング → 音読'},
+  2:{meta:'DAY 2 · STEP 2 / 6', ttl:'最後の録音【音源③】', sub:'2日間の集大成を声に残そう'},
+  3:{meta:'DAY 2 · STEP 3 / 6', ttl:'3つの録音を聴き比べ', sub:'君の成長の軌跡'},
+  4:{meta:'DAY 2 · STEP 4 / 6', ttl:'3ヶ月後の君', sub:'保護者プラン限定コンテンツ'},
+  5:{meta:'DAY 2 · STEP 5 / 6', ttl:'保護者への同意', sub:'録音の使い方を選んで'},
+  6:{meta:'DAY 2 · 完走！', ttl:'2日間、お疲れさま', sub:'保護者に送信完了'}
+};
+
+var SHO_EXPLAIN = {
+  0:{name:'再会',emoji:'🌅',text:'よう戻ってきてくれた！\n24時間経って、昨日の音、少し忘れてしもてるかも。\nでもそれで大丈夫。\n「忘れてからもう一度やる」が、一番深く定着するねん✨'},
+  1:{name:'復習',emoji:'🔁',text:'昨日と同じ文章を、短めに復習するで！\nシャドーイング→オーバーラッピング→音読の流れ。\n「昨日より口が動く」と感じたら、それが成長の証や！'},
+  2:{name:'最後の録音',emoji:'🎙',text:'いよいよ最後の録音や！\n完璧に読まなくていい。\n今出せるベストで、気持ちを込めて読んでな。\nこの録音が、2日間の集大成になるで💪'},
+  3:{name:'成長の軌跡',emoji:'✨',text:'ここが今日のクライマックスや！\n3つの録音を順番に聴いてみて。\n昨日の朝→昨日の夜→今日、\n君の声がどう変わったか、\nはっきり感じられるはずやで🎧'},
+  4:{name:'3ヶ月後',emoji:'📊',text:'この2日間でここまで変われた君やから、\n3ヶ月続けたら英検合格も十分見えてくるで。\nここから先の詳しいレポートは、\n保護者の人と一緒に見てほしいねん😊'},
+  5:{name:'同意',emoji:'🤝',text:'君の録音、保護者に届ける前に、\n1つだけ聞かせて。\nどんな使い方ならOKか、君の気持ちで選んで。\nどれを選んでも、sho先生は応援してるで！'},
+  6:{name:'完走',emoji:'💌',text:'2日間、ほんまにお疲れさま！\n保護者の人に、今ちょうどsho先生からお手紙が届いた頃や。\n君の頑張り、ちゃんと伝わるように丁寧に書いたで。\n続きが楽しみやな✨'}
+};
+
+var shoCurrentStep = 0;
+
+function showShoModal(n){
+  var d = SHO_EXPLAIN[n];
+  if(!d) return;
+  shoCurrentStep = n;
+  document.getElementById('shoStepBadge').textContent = 'Step ' + n + ' ' + d.emoji;
+  document.getElementById('shoBubbleTtl').textContent = d.emoji + ' ' + d.name;
+  document.getElementById('shoBubbleText').textContent = d.text;
+  document.getElementById('shoModal').classList.add('open');
+  setTimeout(() => playNarration(d.text.replace(/\n/g,'。')), 200);
+}
+
+function shoProceed(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  document.getElementById('shoModal').classList.remove('open');
+}
+
+// ═══ Step切替 ═══
+function goStep(n){
+  if(n < 0 || n >= TOTAL_STEPS) return;
+  currentStep = n;
+  document.querySelectorAll('.step').forEach(e => e.classList.remove('active'));
+  document.getElementById('step' + n).classList.add('active');
+  var meta = STEP_META[n];
+  document.getElementById('stepMeta').textContent = meta.meta;
+  document.getElementById('stepTtl').textContent = meta.ttl;
+  document.getElementById('stepSub').textContent = meta.sub;
+  var prog = document.getElementById('progBar');
+  prog.innerHTML = '';
+  for(var i = 0; i < TOTAL_STEPS; i++){
+    var d = document.createElement('div');
+    d.className = 'prog-dot' + (i === n ? ' active' : (i < n ? ' done' : ''));
+    prog.appendChild(d);
+  }
+  document.getElementById('navPrev').style.visibility = n === 0 ? 'hidden' : 'visible';
+  var nx = document.getElementById('navNext');
+  nx.classList.remove('disabled', 'gold');
+  nx.onclick = nextStep;
+
+  if(n === 2){
+    nx.textContent = recordings[3] ? '次へ →' : '録音してから →';
+    nx.classList.toggle('disabled', !recordings[3]);
+  } else if(n === 5){
+    nx.style.display = 'none';
+  } else if(n === 6){
+    nx.textContent = '🙌 ありがとう';
+    nx.classList.add('gold');
+    nx.onclick = () => alert('保護者の人からの連絡を待っててな📬');
+    nx.style.display = '';
+  } else {
+    nx.textContent = '次へ →';
+    nx.style.display = '';
+  }
+  window.scrollTo({top: 0, behavior: 'smooth'});
+  if(window.__shoShown || n > 0){
+    setTimeout(() => showShoModal(n), 300);
+  }
+  window.__shoShown = true;
+}
+
+function prevStep(){ if(currentStep > 0) goStep(currentStep - 1); }
+function nextStep(){
+  if(currentStep === 2 && !recordings[3]) return;
+  if(currentStep < TOTAL_STEPS - 1) goStep(currentStep + 1);
+}
+
+// ═══ 音声再生（英語） ═══
+function setVoice(v) {
+  selectedVoice = v;
+  document.querySelectorAll('.voice-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.voice === v);
+  });
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+}
+function spkPassage(rate) {
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  var speedKey = rate <= 0.75 ? 'slow' : (rate <= 0.87 ? 'normal' : 'fast');
+  var url = 'https://sho-blog.com/audio/passage_' + speedKey + '_' + selectedVoice + '.mp3';
+  currentAudio = new Audio(url);
+  currentAudio.play();
+}
+function playNarration(text) {
+  if (!text) return;
+  if (currentNarration) { currentNarration.pause(); currentNarration = null; }
+  if (ttsCache[selectedVoice + '_' + text]) {
+    currentNarration = new Audio(ttsCache[selectedVoice + '_' + text]);
+    currentNarration.play();
+    return;
+  }
+  fetch(SHO_GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ type: 'tts', text: text, voiceId: VOICE_ID_MAP[selectedVoice] || VOICE_ID_MAP.adam })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.audio_base64) {
+      var audioUrl = 'data:audio/mpeg;base64,' + data.audio_base64;
+      ttsCache[selectedVoice + '_' + text] = audioUrl;
+      currentNarration = new Audio(audioUrl);
+      currentNarration.play();
+    }
+  })
+  .catch(err => console.error('TTS error:', err));
+}
+
+// ═══ 録音機能 ═══
+var recState = {};
+
+async function toggleRec(idx){
+  if(!recState[idx]) recState[idx] = {on:false, time:0, iv:null, chunks:[], recorder:null, stream:null, audioCtx:null, analyser:null};
+  var s = recState[idx];
+
+  if(!s.on){
+    try{
+      s.stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      s.chunks = [];
+      s.recorder = new MediaRecorder(s.stream);
+      s.recorder.ondataavailable = e => { if(e.data.size > 0) s.chunks.push(e.data); };
+      s.recorder.onstop = () => {
+        var blob = new Blob(s.chunks, {type:'audio/webm'});
+        var url = URL.createObjectURL(blob);
+        recordings[idx] = {blob:blob, url:url, timestamp:Date.now()};
+        document.getElementById('rec' + idx + 'Audio').src = url;
+        document.getElementById('rec' + idx + 'Playback').classList.add('show');
+        if(s.stream) s.stream.getTracks().forEach(t => t.stop());
+        if(s.audioCtx) s.audioCtx.close();
+        if(idx === 3){
+          var nx = document.getElementById('navNext');
+          nx.textContent = '次へ →';
+          nx.classList.remove('disabled');
+        }
+      };
+      s.recorder.start();
+      s.on = true;
+      s.time = 0;
+      document.getElementById('rec' + idx + 'Btn').classList.add('stop');
+      document.getElementById('rec' + idx + 'Btn').textContent = '■';
+      document.getElementById('rec' + idx + 'Status').textContent = '● 録音中...';
+      document.getElementById('rec' + idx + 'Status').classList.add('live');
+      s.iv = setInterval(() => {
+        s.time++;
+        var m = String(Math.floor(s.time / 60)).padStart(2,'0');
+        var sc = String(s.time % 60).padStart(2,'0');
+        document.getElementById('rec' + idx + 'Timer').textContent = m + ':' + sc;
+        if(s.time >= 60) toggleRec(idx);
+      }, 1000);
+      s.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      s.analyser = s.audioCtx.createAnalyser();
+      s.analyser.fftSize = 256;
+      s.audioCtx.createMediaStreamSource(s.stream).connect(s.analyser);
+      drawWave(idx, s);
+    } catch(err){
+      alert('マイクの許可が必要やで。ブラウザ設定を確認してな。');
+    }
+  } else {
+    s.on = false;
+    clearInterval(s.iv);
+    if(s.recorder && s.recorder.state === 'recording') s.recorder.stop();
+    document.getElementById('rec' + idx + 'Btn').classList.remove('stop');
+    document.getElementById('rec' + idx + 'Btn').textContent = '🎙';
+    document.getElementById('rec' + idx + 'Status').textContent = '✓ 録音完了！下で再生できるで';
+    document.getElementById('rec' + idx + 'Status').classList.remove('live');
+  }
+}
+
+function drawWave(idx, s){
+  var c = document.getElementById('rec' + idx + 'Wave');
+  var ctx = c.getContext('2d');
+  c.width = c.offsetWidth; c.height = c.offsetHeight;
+  var data = new Uint8Array(s.analyser.fftSize);
+  function draw(){
+    if(!s.on) return;
+    requestAnimationFrame(draw);
+    s.analyser.getByteTimeDomainData(data);
+    ctx.fillStyle = 'rgba(0,0,0,.3)';
+    ctx.fillRect(0,0,c.width,c.height);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#fff';
+    ctx.beginPath();
+    var sw = c.width / data.length, x = 0;
+    for(var i = 0; i < data.length; i++){
+      var v = data[i] / 128;
+      var y = v * c.height / 2;
+      if(i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+      x += sw;
+    }
+    ctx.lineTo(c.width, c.height/2);
+    ctx.stroke();
+  }
+  draw();
+}
+
+// ═══ Day1録音の取得（localStorage） ═══
+function getDay1Recording(type){
+  // 実際の実装ではlocalStorage/サーバーから取得
+  // プレビュー版では音声合成で代用
+  return null;
+}
+
+function playStoredRec(type){
+  // Day1のBefore/After録音再生（保存されてる場合）
+  // プレビュー段階ではデモ再生
+  if(!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  var text = 'Hello! My name is Ken. Today I\'m going to meet my friend at the station.';
+  var u = new SpeechSynthesisUtterance(text);
+  u.lang = 'en-US';
+  u.rate = type === 'before' ? 0.75 : 0.95;
+  u.pitch = type === 'before' ? 0.85 : 1.0;
+  window.speechSynthesis.speak(u);
+}
+
+// ═══ トラック再生（セレモニー） ═══
+var currentPlayingTrack = null;
+function playTrack(n){
+  // アクティブ表示
+  document.querySelectorAll('.audio-track').forEach(e => e.classList.remove('active'));
+  document.getElementById('track' + n).classList.add('active');
+
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+
+  var text = 'Hello! My name is Ken. Today I\'m going to meet my friend at the station. We want to eat lunch together and watch a movie.';
+  var u = new SpeechSynthesisUtterance(text);
+  u.lang = 'en-US';
+  // 3段階でピッチ・速度を変えて成長を演出
+  if(n === 1){ u.rate = 0.7; u.pitch = 0.9; }
+  else if(n === 2){ u.rate = 0.85; u.pitch = 1.0; }
+  else { u.rate = 1.0; u.pitch = 1.05; }
+  window.speechSynthesis.speak(u);
+}
+
+// ═══ 3音源を続けて再生 ═══
+var ceremonyPlaying = false;
+function playAllSequential(){
+  if(ceremonyPlaying) return;
+  ceremonyPlaying = true;
+  var btn = document.getElementById('playAllBtn');
+  btn.classList.add('playing');
+  btn.innerHTML = '<span>⏸</span><span>再生中...</span>';
+
+  var pb = document.getElementById('ceremonyProgBar');
+  var totalDuration = 90; // 約90秒
+  var startTime = Date.now();
+
+  var progInterval = setInterval(() => {
+    if(!ceremonyPlaying){ clearInterval(progInterval); return; }
+    var elapsed = (Date.now() - startTime) / 1000;
+    var pct = Math.min(100, elapsed / totalDuration * 100);
+    pb.style.width = pct + '%';
+    if(pct >= 100){
+      clearInterval(progInterval);
+      ceremonyPlaying = false;
+      btn.classList.remove('playing');
+      btn.innerHTML = '<span>▶</span><span>3つを続けて聴く（約90秒）</span>';
+      document.querySelectorAll('.audio-track').forEach(e => e.classList.remove('active'));
+    }
+  }, 100);
+
+  // 順番に再生
+  setTimeout(() => playTrack(1), 100);
+  setTimeout(() => playTrack(2), 30000);
+  setTimeout(() => playTrack(3), 60000);
+}
+
+// ═══ 同意選択 ═══
+function selectConsent(choice){
+  consentChoice = choice;
+  document.querySelectorAll('.consent-opt').forEach(e => e.classList.remove('selected'));
+  var selectedEl = choice === 'full' ? 'opt1' : (choice === 'anonymous' ? 'opt2' : 'opt3');
+  document.getElementById(selectedEl).classList.add('selected');
+  var btn = document.getElementById('submitBtn');
+  btn.disabled = false;
+  btn.querySelector('#submitBtnText').textContent = '📬 保護者に送信する';
+}
+
+function submitToParent(){
+  if(!consentChoice) return;
+  sendV3Event('consent', {choice: consentChoice});
+  sendV3Event('day2_done', {timestamp: Date.now()});
+  // 送信処理（実装時はGAS/APIへ）
+  // プレビュー段階では成功画面へ遷移
+  var thanksTxt = {
+    full: {
+      ttl:'最高の選択、ありがとう！✨',
+      sub:'sho先生、責任もって大事に使わせてもらうで。<br>保護者プラン初月50%OFFのボーナス、<br>保護者の方のLINEに届くで🎁'
+    },
+    anonymous: {
+      ttl:'ありがとう！🎭',
+      sub:'匿名で音声だけ、大事に使わせてもらうで。<br>保護者の方へ、3つの録音と成長レポートを<br>今から送るで📬'
+    },
+    private: {
+      ttl:'了解！🔒',
+      sub:'プライベートに、<br>保護者の方にだけ録音とレポートを届けるで。<br>安心してな🤝'
+    }
+  };
+  var t = thanksTxt[consentChoice];
+  document.getElementById('thanksTtl').textContent = t.ttl;
+  document.getElementById('thanksSub').innerHTML = t.sub;
+
+  goStep(6);
+}
+
+// 初期化
+window.addEventListener('DOMContentLoaded', () => {
+  goStep(0);
+  setTimeout(() => showShoModal(0), 800);
+});
+</script>
+
+<section class="album-reveal" style="background:#fff;padding:24px;border-radius:14px;margin:24px 0;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+  <h2 style="color:#1a2d45;text-align:center;">✨ 24 時間でこれだけ変わりました</h2>
+  <p style="text-align:center;line-height:1.9;">
+    あなたのお子さんは、たった 2 日で<br>
+    リズム・連続発音 (Linking)・Flap T を<br>
+    体に入れ始めています。<br><br>
+    これが、保護者プランで毎月届く<br>
+    「成長のアルバム」の最初の 1 ページです。
+  </p>
+  <h3 style="margin-top:24px;text-align:center;font-size:14px;color:#666;">昨日のビフォー・アフター・今日の音読</h3>
+  <div class="three-recordings" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:12px;">
+    <div class="rec rec-before" style="flex:1;min-width:120px;text-align:center;background:#fafaf7;padding:10px;border-radius:8px;">
+      <div class="rec-label" style="font-size:12px;color:#888;">Day1 ビフォー</div>
+      <button class="play-btn" data-src="local:parent_day1_before" style="margin-top:6px;padding:8px 14px;background:#1a2d45;color:#fff;border:0;border-radius:6px;">▶ 再生</button>
+    </div>
+    <div class="rec rec-after" style="flex:1;min-width:120px;text-align:center;background:#fafaf7;padding:10px;border-radius:8px;">
+      <div class="rec-label" style="font-size:12px;color:#888;">Day1 アフター</div>
+      <button class="play-btn" data-src="local:parent_day1_after" style="margin-top:6px;padding:8px 14px;background:#1a2d45;color:#fff;border:0;border-radius:6px;">▶ 再生</button>
+    </div>
+    <div class="rec rec-day2" style="flex:1;min-width:120px;text-align:center;background:#fafaf7;padding:10px;border-radius:8px;">
+      <div class="rec-label" style="font-size:12px;color:#888;">Day2 音読</div>
+      <button class="play-btn" data-src="local:parent_day2_reading" style="margin-top:6px;padding:8px 14px;background:#1a2d45;color:#fff;border:0;border-radius:6px;">▶ 再生</button>
+    </div>
+  </div>
+  <div style="text-align:center;margin-top:24px;">
+    <a href="https://lin.ee/whBrh29" class="btn accent" style="background:#1a2d45;color:#fff;padding:14px 28px;border-radius:999px;text-decoration:none;display:inline-block;">LINE で見本を受け取る</a>
+    <p class="muted small" style="margin-top:8px;color:#888;font-size:12px;">5 日間で 3 通、保護者プランの「見本」をお届けします</p>
+  </div>
+  <script>
+  document.querySelectorAll(".play-btn").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      var key = btn.dataset.src.replace("local:", "");
+      var src = localStorage.getItem(key);
+      if (!src) { alert("録音が見つかりません。Day1 から録音してください。"); return; }
+      var audio = new Audio(src); audio.play();
+    });
+  });
+  </script>
+</section>
+</body>
+</html>
