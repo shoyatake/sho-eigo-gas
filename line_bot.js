@@ -7,6 +7,7 @@ const CONFIG = {
   LINE_TOKEN: 'YOUR_LINE_CHANNEL_ACCESS_TOKEN',
   SS_ID: 'YOUR_SPREADSHEET_ID',
   GAS_URL: 'YOUR_GAS_DEPLOY_URL',
+  ADMIN_EMAIL: '',
 };
 
 const MONITOR_CONFIG = {
@@ -38,7 +39,7 @@ function doPost(e) {
       if (event.type === 'postback') handlePostback(event);
     });
   } catch(err) {
-    Logger.log('doPost Error: ' + err.toString());
+    logError('doPost', err);
   }
   return ContentService
     .createTextOutput(JSON.stringify({status:'ok'}))
@@ -294,30 +295,34 @@ function checkAndSendScheduled() {
     const scenarioId = row[2];
     const stepNum    = parseInt(row[3]) || 0;
     const stepSentAt = row[4] ? new Date(row[4]) : null;
-    if (!userId || !scenarioId) continue;
-    if (hasTag(userId, 'deleted')) continue;
-    const step = getScenarioStep(scenarioId, stepNum);
-    if (!step) continue;
-    if (!isSendDue(stepSentAt, step.delayDays, step.sendHour, now)) continue;
-    if (step.skipIfTag && hasTag(userId, step.skipIfTag)) {
-      updateUserStep(userId, scenarioId, stepNum + 1, now);
-      continue;
+    try {
+      if (!userId || !scenarioId) continue;
+      if (hasTag(userId, 'deleted')) continue;
+      const step = getScenarioStep(scenarioId, stepNum);
+      if (!step) continue;
+      if (!isSendDue(stepSentAt, step.delayDays, step.sendHour, now)) continue;
+      if (step.skipIfTag && hasTag(userId, step.skipIfTag)) {
+        updateUserStep(userId, scenarioId, stepNum + 1, now);
+        continue;
+      }
+      if (step.executeDeletion) {
+        executeUserDeletion(userId);
+        updateUserStep(userId, scenarioId, stepNum + 1, now);
+        continue;
+      }
+      const msg = buildMessage(scenarioId, stepNum, userId);
+      if (msg) {
+        sendPushMessage(userId, msg);
+        updateUserStep(userId, scenarioId, stepNum + 1, now);
+      }
+      if (step.sendSurvey)            { Utilities.sleep(500); sendSurveyButtons(userId); }
+      if (step.sendQuiz)              { Utilities.sleep(500); sendQuizButtons(userId); }
+      if (step.sendMonitorMidSurvey)  { Utilities.sleep(500); sendMonitorMidSurvey(userId); }
+      if (step.sendMonitorFinalSurvey){ Utilities.sleep(500); sendMonitorFinalSurvey(userId); }
+      Utilities.sleep(200);
+    } catch(err) {
+      logError('checkAndSendScheduled', err, { userId: userId, scenarioId: scenarioId, stepNum: stepNum });
     }
-    if (step.executeDeletion) {
-      executeUserDeletion(userId);
-      updateUserStep(userId, scenarioId, stepNum + 1, now);
-      continue;
-    }
-    const msg = buildMessage(scenarioId, stepNum, userId);
-    if (msg) {
-      sendPushMessage(userId, msg);
-      updateUserStep(userId, scenarioId, stepNum + 1, now);
-    }
-    if (step.sendSurvey)            { Utilities.sleep(500); sendSurveyButtons(userId); }
-    if (step.sendQuiz)              { Utilities.sleep(500); sendQuizButtons(userId); }
-    if (step.sendMonitorMidSurvey)  { Utilities.sleep(500); sendMonitorMidSurvey(userId); }
-    if (step.sendMonitorFinalSurvey){ Utilities.sleep(500); sendMonitorFinalSurvey(userId); }
-    Utilities.sleep(200);
   }
   checkEngagement();
   checkDeletionEligibility();
@@ -596,61 +601,135 @@ function logSurvey(userId, answer, scenarioMoved) {
   sheet.appendRow([userId, answer, scenarioMoved, new Date()]);
 }
 
+function logError(funcName, err, context) {
+  var errStr = String(err) + (err && err.stack ? '\n' + err.stack : '');
+  var contextStr = '';
+  if (context) {
+    try { contextStr = JSON.stringify(context); } catch(e) { contextStr = String(context); }
+  }
+  try {
+    var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+    var sheet = ss.getSheetByName('ERROR_LOG');
+    if (!sheet) {
+      sheet = ss.insertSheet('ERROR_LOG');
+      sheet.appendRow(['timestamp','function','error','context']);
+      sheet.getRange(1,1,1,4).setBackground('#1a2d45').setFontColor('#fff').setFontWeight('bold');
+    }
+    sheet.appendRow([new Date(), funcName, errStr, contextStr]);
+  } catch(sheetErr) {
+    Logger.log('logError sheet failure: ' + sheetErr + ' | original: ' + funcName + ' ' + errStr);
+  }
+  try {
+    if (CONFIG.ADMIN_EMAIL) {
+      var props = PropertiesService.getScriptProperties();
+      var lastAt = props.getProperty('last_error_alert_at');
+      var now = new Date();
+      var shouldSend = true;
+      if (lastAt) {
+        var diffMs = now.getTime() - new Date(lastAt).getTime();
+        if (diffMs < 24 * 60 * 60 * 1000) shouldSend = false;
+      }
+      if (shouldSend) {
+        MailApp.sendEmail({
+          to: CONFIG.ADMIN_EMAIL,
+          subject: '[sho-eigo] Error in ' + funcName,
+          body: 'Function: ' + funcName + '\n\nError:\n' + errStr + '\n\nContext:\n' + contextStr
+        });
+        props.setProperty('last_error_alert_at', now.toISOString());
+      }
+    }
+  } catch(mailErr) {
+    Logger.log('logError mail failure: ' + mailErr);
+  }
+}
+
 function sendPushMessage(userId, text) {
   if (!text) return;
-  UrlFetchApp.fetch(LINE_API + '/push', {
-    method: 'post',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
-    payload: JSON.stringify({ to: userId, messages: [{ type: 'text', text: text }] }),
-    muteHttpExceptions: true
-  });
+  try {
+    var res = UrlFetchApp.fetch(LINE_API + '/push', {
+      method: 'post',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+      payload: JSON.stringify({ to: userId, messages: [{ type: 'text', text: text }] }),
+      muteHttpExceptions: true
+    });
+    var code = res.getResponseCode();
+    if (code >= 400) {
+      logError('sendPushMessage', new Error('HTTP ' + code + ': ' + res.getContentText()), { userId: userId });
+    }
+  } catch(err) {
+    logError('sendPushMessage', err, { userId: userId });
+  }
 }
 
 function replyMessage(replyToken, text) {
   if (!text || !replyToken) return;
-  UrlFetchApp.fetch(LINE_API + '/reply', {
-    method: 'post',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
-    payload: JSON.stringify({ replyToken: replyToken, messages: [{ type: 'text', text: text }] }),
-    muteHttpExceptions: true
-  });
+  try {
+    var res = UrlFetchApp.fetch(LINE_API + '/reply', {
+      method: 'post',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+      payload: JSON.stringify({ replyToken: replyToken, messages: [{ type: 'text', text: text }] }),
+      muteHttpExceptions: true
+    });
+    var code = res.getResponseCode();
+    if (code >= 400) {
+      logError('replyMessage', new Error('HTTP ' + code + ': ' + res.getContentText()), { replyToken: replyToken });
+    }
+  } catch(err) {
+    logError('replyMessage', err, { replyToken: replyToken });
+  }
 }
 
 function sendSurveyButtons(userId) {
-  UrlFetchApp.fetch(LINE_API + '/push', {
-    method: 'post',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
-    payload: JSON.stringify({
-      to: userId,
-      messages: [{ type: 'template', altText: 'あなたはどちらですか？', template: {
-        type: 'buttons', text: 'あなたはどちらですか？',
-        actions: [
-          { type: 'postback', label: '👩 子どもの英語を伸ばしたい', data: 'survey_parent' },
-          { type: 'postback', label: '🎓 英検を目指す中学・高校生', data: 'survey_student' },
-          { type: 'postback', label: '💼 自分の英語を使えるようにしたい', data: 'survey_adult' },
-        ]
-      }}]
-    }),
-    muteHttpExceptions: true
-  });
+  try {
+    var res = UrlFetchApp.fetch(LINE_API + '/push', {
+      method: 'post',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+      payload: JSON.stringify({
+        to: userId,
+        messages: [{ type: 'template', altText: 'あなたはどちらですか？', template: {
+          type: 'buttons', text: 'あなたはどちらですか？',
+          actions: [
+            { type: 'postback', label: '👩 子どもの英語を伸ばしたい', data: 'survey_parent' },
+            { type: 'postback', label: '🎓 英検を目指す中学・高校生', data: 'survey_student' },
+            { type: 'postback', label: '💼 自分の英語を使えるようにしたい', data: 'survey_adult' },
+          ]
+        }}]
+      }),
+      muteHttpExceptions: true
+    });
+    var code = res.getResponseCode();
+    if (code >= 400) {
+      logError('sendSurveyButtons', new Error('HTTP ' + code + ': ' + res.getContentText()), { userId: userId });
+    }
+  } catch(err) {
+    logError('sendSurveyButtons', err, { userId: userId });
+  }
 }
 
 function sendQuizButtons(userId) {
-  UrlFetchApp.fetch(LINE_API + '/push', {
-    method: 'post',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
-    payload: JSON.stringify({
-      to: userId,
-      messages: [{ type: 'template', altText: '「better」の発音クイズ', template: {
-        type: 'confirm', text: '「better」の本物の発音はどちら？',
-        actions: [
-          { type: 'postback', label: 'A：ベター', data: 'quiz_A' },
-          { type: 'postback', label: 'B：ベラ',   data: 'quiz_B' },
-        ]
-      }}]
-    }),
-    muteHttpExceptions: true
-  });
+  try {
+    var res = UrlFetchApp.fetch(LINE_API + '/push', {
+      method: 'post',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN },
+      payload: JSON.stringify({
+        to: userId,
+        messages: [{ type: 'template', altText: '「better」の発音クイズ', template: {
+          type: 'confirm', text: '「better」の本物の発音はどちら？',
+          actions: [
+            { type: 'postback', label: 'A：ベター', data: 'quiz_A' },
+            { type: 'postback', label: 'B：ベラ',   data: 'quiz_B' },
+          ]
+        }}]
+      }),
+      muteHttpExceptions: true
+    });
+    var code = res.getResponseCode();
+    if (code >= 400) {
+      logError('sendQuizButtons', new Error('HTTP ' + code + ': ' + res.getContentText()), { userId: userId });
+    }
+  } catch(err) {
+    logError('sendQuizButtons', err, { userId: userId });
+  }
 }
 
 function getLineProfile(userId) {
@@ -658,8 +737,16 @@ function getLineProfile(userId) {
     var res = UrlFetchApp.fetch('https://api.line.me/v2/bot/profile/' + userId, {
       headers: { 'Authorization': 'Bearer ' + CONFIG.LINE_TOKEN }, muteHttpExceptions: true
     });
+    var code = res.getResponseCode();
+    if (code >= 400) {
+      logError('getLineProfile', new Error('HTTP ' + code + ': ' + res.getContentText()), { userId: userId });
+      return null;
+    }
     return JSON.parse(res.getContentText());
-  } catch(e) { return null; }
+  } catch(err) {
+    logError('getLineProfile', err, { userId: userId });
+    return null;
+  }
 }
 
 function sendStepNow(userId, scenarioId, stepNum) {
@@ -694,6 +781,7 @@ function setupSheets() {
     'CLICK_LOG':    ['userId','tag','url','clickedAt'],
     'SURVEY_LOG':   ['userId','answer','scenarioMoved','answeredAt'],
     'SUMMARY':      ['weekStart','weekEnd','newUsers','totalClicks','readClicks','surveyParent','surveyStudent','surveyAdult','deletions','dormantAdded'],
+    'ERROR_LOG':    ['timestamp','function','error','context'],
     'MONITORS':     ['userId','displayName','joinedAt','expectedEndAt','status','completedAt'],
     'FEEDBACK_LOG': ['userId','type','content','receivedAt'],
   };
