@@ -932,6 +932,7 @@ function setupSheets() {
     'TAGS':         ['userId','tag','addedAt'],
     'CLICK_LOG':    ['userId','tag','url','clickedAt'],
     'SURVEY_LOG':   ['userId','answer','scenarioMoved','answeredAt'],
+    'SUMMARY':      ['weekStart','weekEnd','newUsers','totalClicks','readClicks','surveyParent','surveyStudent','surveyAdult','deletions','dormantAdded'],
     'ERROR_LOG':    ['timestamp','function','error','context'],
     'MONITORS':     ['userId','displayName','joinedAt','expectedEndAt','status','completedAt'],
     'FEEDBACK_LOG': ['userId','type','content','receivedAt'],
@@ -952,6 +953,100 @@ function setupTrigger() {
   });
   ScriptApp.newTrigger('checkAndSendScheduled').timeBased().everyHours(1).create();
   Logger.log('トリガー設定完了');
+}
+
+function generateWeeklySummary() {
+  var ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  var header = ['weekStart','weekEnd','newUsers','totalClicks','readClicks','surveyParent','surveyStudent','surveyAdult','deletions','dormantAdded'];
+  var summarySheet = ss.getSheetByName('SUMMARY') || ss.insertSheet('SUMMARY');
+  if (summarySheet.getLastRow() === 0) {
+    summarySheet.appendRow(header);
+    summarySheet.getRange(1, 1, 1, header.length).setBackground('#1a2d45').setFontColor('#fff').setFontWeight('bold');
+  }
+
+  var now = new Date();
+  var weekEnd = new Date(now.getTime());
+  var weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  var weekStartIso = Utilities.formatDate(weekStart, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  var weekEndIso = Utilities.formatDate(weekEnd, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+  var inWindow = function(d) {
+    if (!d) return false;
+    var t = (d instanceof Date) ? d.getTime() : new Date(d).getTime();
+    if (isNaN(t)) return false;
+    return t >= weekStart.getTime() && t <= weekEnd.getTime();
+  };
+
+  var newUsers = 0;
+  var usersSheet = ss.getSheetByName('USERS');
+  if (usersSheet) {
+    var usersData = usersSheet.getDataRange().getValues();
+    for (var i = 1; i < usersData.length; i++) {
+      if (inWindow(usersData[i][5])) newUsers++;
+    }
+  }
+
+  var totalClicks = 0;
+  var readClicks = 0;
+  var clickSheet = ss.getSheetByName('CLICK_LOG');
+  if (clickSheet) {
+    var clickData = clickSheet.getDataRange().getValues();
+    for (var j = 1; j < clickData.length; j++) {
+      if (!inWindow(clickData[j][3])) continue;
+      totalClicks++;
+      var ctag = clickData[j][1];
+      if (typeof ctag === 'string' && ctag.indexOf('read_') === 0) readClicks++;
+    }
+  }
+
+  var surveyParent = 0;
+  var surveyStudent = 0;
+  var surveyAdult = 0;
+  var surveySheet = ss.getSheetByName('SURVEY_LOG');
+  if (surveySheet) {
+    var surveyData = surveySheet.getDataRange().getValues();
+    for (var k = 1; k < surveyData.length; k++) {
+      if (!inWindow(surveyData[k][3])) continue;
+      var answer = surveyData[k][1];
+      if (answer === 'survey_parent') surveyParent++;
+      else if (answer === 'survey_student') surveyStudent++;
+      else if (answer === 'survey_adult') surveyAdult++;
+    }
+  }
+
+  var deletions = 0;
+  var deletionSheet = ss.getSheetByName('DELETION_LOG');
+  if (deletionSheet) {
+    var deletionData = deletionSheet.getDataRange().getValues();
+    for (var m = 1; m < deletionData.length; m++) {
+      if (inWindow(deletionData[m][1])) deletions++;
+    }
+  }
+
+  var dormantAdded = 0;
+  var tagsSheet = ss.getSheetByName('TAGS');
+  if (tagsSheet) {
+    var tagsData = tagsSheet.getDataRange().getValues();
+    for (var n = 1; n < tagsData.length; n++) {
+      if (tagsData[n][1] === 'dormant' && inWindow(tagsData[n][2])) dormantAdded++;
+    }
+  }
+
+  summarySheet.appendRow([weekStartIso, weekEndIso, newUsers, totalClicks, readClicks, surveyParent, surveyStudent, surveyAdult, deletions, dormantAdded]);
+  Logger.log('週次サマリー生成完了: ' + weekStartIso + ' 〜 ' + weekEndIso);
+}
+
+function setupWeeklyTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'generateWeeklySummary') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('generateWeeklySummary')
+    .timeBased()
+    .everyWeeks(1)
+    .onWeekDay(ScriptApp.WeekDay.MONDAY)
+    .atHour(9)
+    .create();
+  Logger.log('週次トリガー設定完了');
 }
 
 // ============================================================
