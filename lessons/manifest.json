@@ -1,0 +1,63 @@
+{
+  "courses": [
+    { "id": "katakana_reset_v1", "name": "カタカナ英語RESET①", "folder": "katakana_reset_v1", "days": 15, "level": "入門", "en_voice_id": "XXX", "ready": false },
+    { "id": "katakana_reset_v2", "name": "カタカナ英語RESET②", "folder": "katakana_reset_v2", "days": 15, "level": "入門", "en_voice_id": "XXX", "ready": false },
+    { "id": "katakana_reset_v3", "name": "カタカナ英語RESET③", "folder": "katakana_reset_v3", "days": 15, "level": "入門", "en_voice_id": "XXX", "ready": false },
+
+    { "id": "shadow_habit_30_v1", "name": "シャドーイング習慣化30日①", "folder": "shadow_habit_v1", "days": 30, "level": "初級", "en_voice_id": "XXX", "ready": false },
+    { "id": "shadow_habit_30_v2", "name": "シャドーイング習慣化30日②", "folder": "shadow_habit_v2", "days": 30, "level": "初級", "en_voice_id": "XXX", "ready": false },
+    { "id": "shadow_habit_30_v3", "name": "シャドーイング習慣化30日③", "folder": "shadow_habit_v3", "days": 30, "level": "初級", "en_voice_id": "XXX", "ready": false },
+
+    { "id": "chugaku1_v1", "name": "中学1年 ①", "folder": "chugaku1_v1", "days": 25, "level": "中1", "en_voice_id": "XXX", "ready": false },
+    { "id": "chugaku1_v2", "name": "中学1年 ②", "folder": "chugaku1_v2", "days": 25, "level": "中1", "en_voice_id": "XXX", "ready": false },
+    { "id": "chugaku1_v3", "name": "中学1年 ③", "folder": "chugaku1_v3", "days": 25, "level": "中1", "en_voice_id": "XXX", "ready": false },
+    { "id": "chugaku2_v1", "name": "中学2年 ①", "folder": "chugaku2_v1", "days": 25, "level": "中2", "en_voice_id": "XXX", "ready": false },
+    { "id": "chugaku2_v2", "name": "中学2年 ②", "folder": "chugaku2_v2", "days": 25, "level": "中2", "en_voice_id": "XXX", "ready": false },
+    { "id": "chugaku2_v3", "name": "中学2年 ③", "folder": "chugaku2_v3", "days": 25, "level": "中2", "en_voice_id": "XXX", "ready": false },
+    { "id": "chugaku3_v1", "name": "中学3年 ①", "folder": "chugaku3_v1", "days": 25, "level": "中3", "en_voice_id": "XXX", "ready": false },
+    { "id": "chugaku3_v2", "name": "中学3年 ②", "folder": "chugaku3_v2", "days": 25, "level": "中3", "en_voice_id": "XXX", "ready": false },
+    { "id": "chugaku3_v3", "name": "中学3年 ③", "folder": "chugaku3_v3", "days": 25, "level": "中3", "en_voice_id": "XXX", "ready": false },
+
+    { "id": "eiken43_v1", "name": "英検4〜3級 ①", "folder": "eiken43_v1", "days": 15, "level": "4〜3級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken43_v2", "name": "英検4〜3級 ②", "folder": "eiken43_v2", "days": 15, "level": "4〜3級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken43_v3", "name": "英検4〜3級 ③", "folder": "eiken43_v3", "days": 15, "level": "4〜3級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken43_v4", "name": "英検4〜3級 ④", "folder": "eiken43_v4", "days": 15, "level": "4〜3級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken43_v5", "name": "英検4〜3級 ⑤", "folder": "eiken43_v5", "days": 15, "level": "4〜3級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken43_v6", "name": "英検4〜3級 ⑥", "folder": "eiken43_v6", "days": 15, "level": "4〜3級", "en_voice_id": "XXX", "ready": false },
+
+    { "id": "eiken3_v1", "name": "英検3級 ①", "folder": "eiken3_v1", "days": 15, "level": "3級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken3_v2", "name": "英検3級 ②", "folder": "eiken3_v2", "days": 15, "level": "3級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken3_v3", "name": "英検3級 ③", "folder": "eiken3_v3", "days": 15, "level": "3級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken3_v4", "name": "英検3級 ④", "folder": "eiken3_v4", "days": 15, "level": "3級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken3_v5", "name": "英検3級 ⑤", "folder": "eiken3_v5", "days": 15, "level": "3級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken3_v6", "name": "英検3級 ⑥", "folder": "eiken3_v6", "days": 15, "level": "3級", "en_voice_id": "XXX", "ready": false },
+
+    { "id": "eiken_pre2_v1", "name": "英検準2級 ①", "folder": "eiken_pre2_v1", "days": 15, "level": "準2級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken_pre2_v2", "name": "英検準2級 ②", "folder": "eiken_pre2_v2", "days": 15, "level": "準2級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken_pre2_v3", "name": "英検準2級 ③", "folder": "eiken_pre2_v3", "days": 15, "level": "準2級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken_pre2_v4", "name": "英検準2級 ④", "folder": "eiken_pre2_v4", "days": 15, "level": "準2級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken_pre2_v5", "name": "英検準2級 ⑤", "folder": "eiken_pre2_v5", "days": 15, "level": "準2級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken_pre2_v6", "name": "英検準2級 ⑥", "folder": "eiken_pre2_v6", "days": 15, "level": "準2級", "en_voice_id": "XXX", "ready": false },
+
+    { "id": "eiken2_v1", "name": "英検2級 ①", "folder": "eiken2_v1", "days": 15, "level": "2級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken2_v2", "name": "英検2級 ②", "folder": "eiken2_v2", "days": 15, "level": "2級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken2_v3", "name": "英検2級 ③", "folder": "eiken2_v3", "days": 15, "level": "2級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken2_v4", "name": "英検2級 ④", "folder": "eiken2_v4", "days": 15, "level": "2級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken2_v5", "name": "英検2級 ⑤", "folder": "eiken2_v5", "days": 15, "level": "2級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken2_v6", "name": "英検2級 ⑥", "folder": "eiken2_v6", "days": 15, "level": "2級", "en_voice_id": "XXX", "ready": false },
+
+    { "id": "eiken_pre1_v1", "name": "英検準1級 ①", "folder": "eiken_pre1_v1", "days": 15, "level": "準1級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken_pre1_v2", "name": "英検準1級 ②", "folder": "eiken_pre1_v2", "days": 15, "level": "準1級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken_pre1_v3", "name": "英検準1級 ③", "folder": "eiken_pre1_v3", "days": 15, "level": "準1級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken_pre1_v4", "name": "英検準1級 ④", "folder": "eiken_pre1_v4", "days": 15, "level": "準1級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken_pre1_v5", "name": "英検準1級 ⑤", "folder": "eiken_pre1_v5", "days": 15, "level": "準1級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken_pre1_v6", "name": "英検準1級 ⑥", "folder": "eiken_pre1_v6", "days": 15, "level": "準1級", "en_voice_id": "XXX", "ready": false },
+
+    { "id": "eiken1_v1", "name": "英検1級 ①", "folder": "eiken1_v1", "days": 15, "level": "1級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken1_v2", "name": "英検1級 ②", "folder": "eiken1_v2", "days": 15, "level": "1級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken1_v3", "name": "英検1級 ③", "folder": "eiken1_v3", "days": 15, "level": "1級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken1_v4", "name": "英検1級 ④", "folder": "eiken1_v4", "days": 15, "level": "1級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken1_v5", "name": "英検1級 ⑤", "folder": "eiken1_v5", "days": 15, "level": "1級", "en_voice_id": "XXX", "ready": false },
+    { "id": "eiken1_v6", "name": "英検1級 ⑥", "folder": "eiken1_v6", "days": 15, "level": "1級", "en_voice_id": "XXX", "ready": false }
+  ]
+}

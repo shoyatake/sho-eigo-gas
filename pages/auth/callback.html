@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>認証中… | sho eigo</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<main class="container">
+  <p id="msg">認証処理中です…</p>
+</main>
+<script>
+  // GAS の line_callback ハンドラから #token=...&userId=...&role=... 形式で飛んでくる
+  const hash = location.hash.replace(/^#/, '');
+  const params = new URLSearchParams(hash);
+  const token = params.get('token');
+  const userId = params.get('userId');
+  const role = params.get('role');
+  const expectedState = sessionStorage.getItem('sho_line_state');
+  const receivedState = params.get('state');
+
+  function showError(msg) {
+    document.getElementById('msg').innerHTML = '<strong style="color:#c0392b;">' + msg + '</strong><br><a href="/auth/login.html">ログイン画面に戻る</a>';
+  }
+
+  if (!token || !userId) {
+    showError('認証情報が取得できませんでした。');
+  } else if (expectedState && receivedState !== expectedState) {
+    showError('CSRF state が一致しません（セッションが切れている可能性があります）。');
+  } else {
+    localStorage.setItem('sho_jwt', token);
+    localStorage.setItem('sho_user', JSON.stringify({ userId, role, expiresAt: null }));
+    sessionStorage.removeItem('sho_line_state');
+    location.replace('/auth/dashboard.html');
+  }
+</script>
+</body>
+</html>

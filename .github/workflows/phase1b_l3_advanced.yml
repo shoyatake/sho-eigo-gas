@@ -1,0 +1,59 @@
+name: Phase 1-B — Generate L3 Advanced pages
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_upload:
+        description: 'Skip FTP upload (生成のみ、Artifacts に出力)'
+        required: false
+        type: boolean
+        default: false
+      skip_top_inject:
+        description: 'Skip /courses/{parent,student}/ トップページの advanced リンク追加'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: phase1b-l3-advanced
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run phase1b_l3_advanced.sh
+        env:
+          XSERVER_PASS:    ${{ secrets.FTP_PASS }}
+          WORK_DIR:        ${{ runner.temp }}/phase1b_workdir
+          BACKUP_DIR:      ${{ runner.temp }}/phase1b_backup
+          SKIP_UPLOAD:     ${{ inputs.skip_upload && '1' || '0' }}
+          SKIP_TOP_INJECT: ${{ inputs.skip_top_inject && '1' || '0' }}
+        run: |
+          if [ -z "${XSERVER_PASS}" ]; then
+            echo "::error::secrets.FTP_PASS が設定されていません。Settings → Secrets で追加してください。"
+            exit 1
+          fi
+          bash scripts/phase1b_l3_advanced.sh
+
+      - name: Upload generated HTML as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1b-html-${{ github.run_number }}
+          path: |
+            ${{ runner.temp }}/phase1b_workdir/*.html
+            ${{ runner.temp }}/phase1b_backup/*.html
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Verify endpoints (skip_upload=false 時のみ意味あり)
+        if: ${{ !inputs.skip_upload }}
+        run: |
+          echo "▶ HTTPS 検証"
+          for path in "/courses/parent/advanced/" "/courses/student/advanced/" "/courses/parent/" "/courses/student/"; do
+            code=$(curl -sS -o /dev/null -w "%{http_code}" "https://sho-blog.com${path}")
+            printf "  [%s] %s\n" "$code" "$path"
+          done
